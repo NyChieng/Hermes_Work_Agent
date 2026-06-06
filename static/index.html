@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<!-- Railway 免费版每月 $5 credits，轻量 AI agent 完全够用 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Work Progress Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ── Login overlay ─────────────────────────────────────────── -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">🤖</div>
+    <h1 class="login-title">Work Progress Agent</h1>
+    <p class="login-sub">输入访问密码</p>
+    <input id="pwd-input" type="password" placeholder="Password" autocomplete="current-password" />
+    <button id="login-btn">进入</button>
+    <p id="login-err" class="login-err"></p>
+  </div>
+</div>
+
+<!-- ── Main app (hidden until login) ─────────────────────────── -->
+<div id="app" class="hidden">
+
+  <!-- Left panel: task board -->
+  <aside id="board-panel">
+    <header class="board-header">
+      <span class="board-title">📋 工作进度</span>
+      <button id="new-task-btn" class="btn-primary btn-sm">+ 新任务</button>
+    </header>
+
+    <!-- Summary cards -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-num" id="stat-total">0</span>
+        <span class="stat-label">总任务</span>
+      </div>
+      <div class="stat-card done">
+        <span class="stat-num" id="stat-done">0</span>
+        <span class="stat-label">已完成</span>
+      </div>
+      <div class="stat-card wip">
+        <span class="stat-num" id="stat-wip">0</span>
+        <span class="stat-label">进行中</span>
+      </div>
+      <div class="stat-card blocked">
+        <span class="stat-num" id="stat-blocked">0</span>
+        <span class="stat-label">阻塞</span>
+      </div>
+    </div>
+
+    <!-- Mood switcher -->
+    <div class="mood-row">
+      <button class="mood-btn active" data-mood="friend">😏 损友</button>
+      <button class="mood-btn" data-mood="drill">🪖 军训</button>
+      <button class="mood-btn" data-mood="boss">😔 怨念</button>
+    </div>
+
+    <!-- Inline add-task form (hidden by default) -->
+    <div id="add-form" class="add-form hidden">
+      <input id="new-name" placeholder="任务名称" />
+      <div class="add-form-row">
+        <select id="new-priority">
+          <option value="high">🔴 高</option>
+          <option value="medium" selected>🟡 中</option>
+          <option value="low">🔵 低</option>
+        </select>
+        <input id="new-notes" placeholder="备注（可选）" />
+      </div>
+      <div class="add-form-row">
+        <button id="add-submit-btn" class="btn-primary btn-sm">添加</button>
+        <button id="add-cancel-btn" class="btn-ghost btn-sm">取消</button>
+      </div>
+    </div>
+
+    <!-- Task columns -->
+    <div class="columns-wrap" id="columns-wrap">
+      <div class="col" id="col-todo">
+        <div class="col-header">⬜ 未开始 <span class="col-count" id="cnt-todo">0</span></div>
+        <div class="col-body" id="list-todo"></div>
+      </div>
+      <div class="col" id="col-in_progress">
+        <div class="col-header">🟡 进行中 <span class="col-count" id="cnt-in_progress">0</span></div>
+        <div class="col-body" id="list-in_progress"></div>
+      </div>
+      <div class="col" id="col-done">
+        <div class="col-header">✅ 已完成 <span class="col-count" id="cnt-done">0</span></div>
+        <div class="col-body" id="list-done"></div>
+      </div>
+      <div class="col" id="col-blocked">
+        <div class="col-header">🔴 阻塞 <span class="col-count" id="cnt-blocked">0</span></div>
+        <div class="col-body" id="list-blocked"></div>
+      </div>
+    </div>
+
+    <!-- Notion sync footer -->
+    <footer class="board-footer">
+      <span id="notion-status" class="notion-status">Notion 未配置</span>
+      <button id="sync-btn" class="btn-ghost btn-sm" title="手动同步 Notion">
+        <span id="sync-icon">🔄</span> 同步
+      </button>
+    </footer>
+  </aside>
+
+  <!-- Right panel: chat -->
+  <main id="chat-panel">
+    <header class="chat-header">
+      <span id="agent-avatar" class="agent-avatar">🤖</span>
+      <div>
+        <div class="agent-name">Work Progress Agent</div>
+        <div id="mood-label" class="agent-mood">😏 损友模式</div>
+      </div>
+    </header>
+
+    <div id="messages" class="messages"></div>
+
+    <!-- Quick commands -->
+    <div class="quick-cmds">
+      <button class="quick-btn" data-msg="今日工作计划">☀️ 今日计划</button>
+      <button class="quick-btn" data-msg="查看当前进度摘要">📊 查看进度</button>
+      <button class="quick-btn" data-msg="列出所有任务">📋 列出任务</button>
+      <button class="quick-btn" data-msg="手动同步 Notion">🔄 同步Notion</button>
+    </div>
+
+    <div class="input-wrap">
+      <textarea id="chat-input" placeholder="输入消息… (Enter 发送，Shift+Enter 换行)" rows="1"></textarea>
+      <button id="send-btn">
+        <span id="send-icon">➤</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- Task edit sidebar (slides in from right) -->
+  <div id="edit-sidebar" class="edit-sidebar hidden">
+    <div class="edit-header">
+      <span>编辑任务</span>
+      <button id="edit-close" class="btn-ghost">✕</button>
+    </div>
+    <label>任务名称</label>
+    <input id="edit-name" type="text" />
+    <label>状态</label>
+    <select id="edit-status">
+      <option value="todo">⬜ 未开始</option>
+      <option value="in_progress">🟡 进行中</option>
+      <option value="done">✅ 已完成</option>
+      <option value="blocked">🔴 阻塞</option>
+    </select>
+    <label>优先级</label>
+    <select id="edit-priority">
+      <option value="high">🔴 高</option>
+      <option value="medium">🟡 中</option>
+      <option value="low">🔵 低</option>
+    </select>
+    <label>备注</label>
+    <textarea id="edit-notes" rows="3"></textarea>
+    <div class="edit-actions">
+      <button id="edit-save-btn" class="btn-primary">保存</button>
+      <button id="edit-delete-btn" class="btn-danger">归档</button>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<script src="/static/app.js"></script>
+</body>
+</html>

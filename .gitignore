@@ -1,0 +1,27 @@
+# Secrets — never commit these
+.env
+
+# SQLite database
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
