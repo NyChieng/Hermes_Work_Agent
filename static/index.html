@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -14,12 +14,21 @@
 <div id="login-overlay">
   <div class="login-card">
     <div class="login-brand">
-      <span class="login-logo">⚡</span>
+      <svg class="login-logo-svg" viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="16" r="15" stroke="url(#lg1)" stroke-width="1.5"/>
+        <path d="M10 22 L16 10 L22 22 M12.5 18h7" stroke="url(#lg1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#0A84FF"/>
+            <stop offset="100%" stop-color="#5E5CE6"/>
+          </linearGradient>
+        </defs>
+      </svg>
       <span class="login-brand-name">Hermes</span>
     </div>
-    <p class="login-sub">输入访问密码继续</p>
-    <input id="pwd-input" type="password" placeholder="Password" autocomplete="current-password" />
-    <button id="login-btn">进入工作台</button>
+    <p class="login-sub">Work Progress Agent</p>
+    <input id="pwd-input" type="password" placeholder="Enter password" autocomplete="current-password" />
+    <button id="login-btn">Sign in</button>
     <p id="login-err" class="login-err"></p>
   </div>
 </div>
@@ -30,39 +39,48 @@
   <!-- ── Sidebar ───────────────────────────────────────────── -->
   <aside id="sidebar">
 
-    <!-- Brand + collapse -->
     <div class="sidebar-top">
       <div class="sidebar-brand">
-        <span class="brand-icon">⚡</span>
+        <svg class="brand-svg" viewBox="0 0 24 24" fill="none">
+          <path d="M7 17 L12 7 L17 17 M9.5 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
         <span class="brand-name">Hermes</span>
       </div>
-      <button id="sidebar-collapse-btn" class="icon-btn" title="折叠侧边栏 (B)">‹</button>
+      <div class="sidebar-top-actions">
+        <button id="theme-toggle-btn" class="icon-btn" title="切换明暗主题">
+          <svg id="theme-icon-dark" class="theme-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
+          <svg id="theme-icon-light" class="theme-icon hidden" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+        </button>
+        <button id="sidebar-collapse-btn" class="icon-btn" title="折叠侧边栏 (B)">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11 2L5 8l6 6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
     </div>
 
     <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-item">
         <span class="stat-val" id="stat-total">0</span>
-        <span class="stat-lbl">总任务</span>
+        <span class="stat-lbl">Tasks</span>
       </div>
       <div class="stat-item done">
         <span class="stat-val" id="stat-done">0</span>
-        <span class="stat-lbl">完成</span>
+        <span class="stat-lbl">Done</span>
       </div>
       <div class="stat-item wip">
         <span class="stat-val" id="stat-wip">0</span>
-        <span class="stat-lbl">进行中</span>
+        <span class="stat-lbl">Active</span>
       </div>
       <div class="stat-item blocked">
         <span class="stat-val" id="stat-blocked">0</span>
-        <span class="stat-lbl">阻塞</span>
+        <span class="stat-lbl">Blocked</span>
       </div>
     </div>
 
     <!-- Progress -->
     <div class="progress-wrap">
       <div class="progress-label">
-        <span>完成进度</span>
+        <span>Completion</span>
         <span id="progress-pct" class="progress-pct-val">0%</span>
       </div>
       <div class="progress-track">
@@ -72,39 +90,43 @@
 
     <!-- Persona -->
     <div class="section-block">
-      <div class="section-label">鞭策模式</div>
+      <div class="section-label">Persona</div>
       <div class="persona-row">
-        <button class="persona-btn active" data-mood="friend" title="嘴毒但真心关心">😏 损友</button>
-        <button class="persona-btn" data-mood="drill" title="没废话只要结果">🪖 军训</button>
-        <button class="persona-btn" data-mood="boss" title="克制的失望">😔 怨念</button>
+        <button class="persona-btn active" data-mood="friend" title="嘴毒但真心关心">Buddy</button>
+        <button class="persona-btn" data-mood="drill" title="没废话只要结果">Drill</button>
+        <button class="persona-btn" data-mood="boss" title="克制的失望">Boss</button>
       </div>
     </div>
 
-    <!-- Search + New task -->
+    <!-- Search + New -->
     <div class="task-toolbar">
       <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input id="search-input" type="text" placeholder="搜索任务… (/)" spellcheck="false" />
-        <button id="search-clear" class="search-clear hidden">✕</button>
+        <svg class="search-icon-svg" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <input id="search-input" type="text" placeholder="Search tasks…  (/)" spellcheck="false" />
+        <button id="search-clear" class="search-clear hidden">
+          <svg viewBox="0 0 12 12" fill="currentColor" width="10" height="10"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
       </div>
-      <button id="new-task-btn" class="btn-new-task" title="新建任务 (N)">＋</button>
+      <button id="new-task-btn" class="btn-new-task" title="New task (N)">
+        <svg viewBox="0 0 12 12" fill="none" width="12" height="12"><path d="M6 1v10M1 6h10" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
     </div>
 
     <!-- Add form -->
     <div id="add-form" class="add-form hidden">
-      <input id="new-name" placeholder="任务名称" />
+      <input id="new-name" placeholder="Task name" />
       <div class="add-row">
         <select id="new-priority">
-          <option value="high">🔴 高</option>
-          <option value="medium" selected>🟡 中</option>
-          <option value="low">🔵 低</option>
+          <option value="high">High</option>
+          <option value="medium" selected>Medium</option>
+          <option value="low">Low</option>
         </select>
-        <input id="new-deadline" type="date" title="截止日期" />
+        <input id="new-deadline" type="date" title="Deadline" />
       </div>
-      <input id="new-notes" placeholder="备注（可选）" />
+      <input id="new-notes" placeholder="Notes (optional)" />
       <div class="add-form-actions">
-        <button id="add-submit-btn" class="btn-primary btn-sm">添加</button>
-        <button id="add-cancel-btn" class="btn-ghost btn-sm">取消</button>
+        <button id="add-submit-btn" class="btn-primary btn-sm">Add</button>
+        <button id="add-cancel-btn" class="btn-ghost btn-sm">Cancel</button>
       </div>
     </div>
 
@@ -114,139 +136,153 @@
       <div class="col" id="col-todo">
         <div class="col-header" data-col="todo">
           <span class="col-dot todo-dot"></span>
-          <span class="col-name">未开始</span>
+          <span class="col-name">To Do</span>
           <span class="col-count" id="cnt-todo">0</span>
-          <span class="col-toggle">▾</span>
+          <svg class="col-toggle-icon" viewBox="0 0 10 10" fill="currentColor" width="8"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
         </div>
         <div class="col-body" id="list-todo">
-          <div class="col-add-hint" data-col="todo">＋ 点此快速添加</div>
+          <div class="col-add-hint" data-col="todo">+ Add task</div>
         </div>
       </div>
 
       <div class="col" id="col-in_progress">
         <div class="col-header" data-col="in_progress">
           <span class="col-dot wip-dot"></span>
-          <span class="col-name">进行中</span>
+          <span class="col-name">In Progress</span>
           <span class="col-count" id="cnt-in_progress">0</span>
-          <span class="col-toggle">▾</span>
+          <svg class="col-toggle-icon" viewBox="0 0 10 10" fill="currentColor" width="8"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
         </div>
         <div class="col-body" id="list-in_progress">
-          <div class="col-add-hint" data-col="in_progress">＋ 点此快速添加</div>
+          <div class="col-add-hint" data-col="in_progress">+ Add task</div>
         </div>
       </div>
 
       <div class="col" id="col-done">
         <div class="col-header" data-col="done">
           <span class="col-dot done-dot"></span>
-          <span class="col-name">已完成</span>
+          <span class="col-name">Done</span>
           <span class="col-count" id="cnt-done">0</span>
-          <span class="col-toggle">▾</span>
+          <svg class="col-toggle-icon" viewBox="0 0 10 10" fill="currentColor" width="8"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
         </div>
         <div class="col-body" id="list-done">
-          <div class="col-add-hint" data-col="done">＋ 点此快速添加</div>
+          <div class="col-add-hint" data-col="done">+ Add task</div>
         </div>
       </div>
 
       <div class="col" id="col-blocked">
         <div class="col-header" data-col="blocked">
           <span class="col-dot blocked-dot"></span>
-          <span class="col-name">阻塞</span>
+          <span class="col-name">Blocked</span>
           <span class="col-count" id="cnt-blocked">0</span>
-          <span class="col-toggle">▾</span>
+          <svg class="col-toggle-icon" viewBox="0 0 10 10" fill="currentColor" width="8"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>
         </div>
         <div class="col-body" id="list-blocked">
-          <div class="col-add-hint" data-col="blocked">＋ 点此快速添加</div>
+          <div class="col-add-hint" data-col="blocked">+ Add task</div>
         </div>
       </div>
 
-    </div><!-- .kanban -->
+    </div>
 
     <!-- Footer -->
     <footer class="sidebar-footer">
       <div class="footer-notion">
-        <span id="notion-dot" class="notion-dot">●</span>
+        <span id="notion-dot" class="notion-dot"></span>
         <span id="notion-label" class="notion-label">Notion</span>
       </div>
       <div class="footer-actions">
         <div class="export-wrap">
-          <button id="export-btn" class="icon-btn" title="导出">↓</button>
+          <button id="export-btn" class="icon-btn" title="Export">
+            <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <div id="export-dropdown" class="export-dropdown hidden">
-            <button id="export-csv-btn">📊 导出 CSV</button>
-            <button id="export-md-btn">📝 导出 Markdown</button>
+            <button id="export-csv-btn">Export CSV</button>
+            <button id="export-md-btn">Export Markdown</button>
           </div>
         </div>
-        <button id="sync-btn" class="icon-btn" title="同步 Notion">
-          <span id="sync-icon">⟳</span>
+        <button id="sync-btn" class="icon-btn" title="Sync Notion">
+          <svg id="sync-icon-svg" viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M13 2v4H9M1 12V8h4M2.2 5A6 6 0 0112.5 8M11.8 9A6 6 0 011.5 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
     </footer>
   </aside>
 
+  <!-- Sidebar expand tab (visible only when sidebar is collapsed) -->
+  <button id="sidebar-tab" class="sidebar-tab" title="Expand sidebar (B)">
+    <svg viewBox="0 0 16 16" fill="none" width="10"><path d="M5 2l6 6-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
   <!-- Sidebar resize handle -->
-  <div id="rz-sidebar" class="resize-handle" title="拖动调整宽度"></div>
+  <div id="rz-sidebar" class="resize-handle" title="Drag to resize"></div>
 
   <!-- ── Chat panel ─────────────────────────────────────────── -->
   <main id="chat-panel">
 
     <header class="chat-header">
       <div class="agent-info">
-        <div id="agent-avatar" class="agent-avatar">⚡</div>
+        <div id="agent-avatar" class="agent-avatar">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+            <path d="M7 17L12 7l5 10M9.5 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
         <div>
           <div class="agent-name">Hermes</div>
-          <div id="mood-label" class="agent-status">😏 损友模式</div>
+          <div id="mood-label" class="agent-status">Buddy mode</div>
         </div>
       </div>
       <div class="chat-actions">
-        <button id="weekly-btn" class="chip-btn" title="生成本周报告">📋 周报</button>
-        <button id="shortcuts-btn" class="icon-btn" title="快捷键帮助">?</button>
+        <button id="weekly-btn" class="chip-btn">Weekly Report</button>
+        <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts">
+          <svg viewBox="0 0 14 14" fill="none" width="12"><rect x="1" y="3" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 7h.01M7 7h.01M10 7h.01M4 9.5h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </button>
       </div>
     </header>
 
     <div id="messages" class="messages">
       <div class="msg agent welcome-msg">
-        <span class="msg-av">⚡</span>
+        <div class="msg-av-wrap">
+          <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M7 17L12 7l5 10M9.5 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
         <div class="msg-bubble">
-          嘿，工作台准备好了。<br>
-          <span class="msg-hint">直接说任务，或拖拽图片来识别待办事项。</span>
+          Hey, workspace is ready.<br>
+          <span class="msg-hint">Tell me about a task, or drag an image here to extract to-dos from it.</span>
         </div>
       </div>
     </div>
 
     <div class="quick-bar">
-      <button class="chip" data-msg="今日工作计划">☀️ 今日计划</button>
-      <button class="chip" data-msg="查看当前进度摘要">📊 进度</button>
-      <button class="chip" data-msg="列出所有高优先级任务">🔴 高优先</button>
-      <button class="chip" data-msg="有哪些任务快要截止了">⏰ 快到期</button>
+      <button class="chip" data-msg="今日工作计划">Today's plan</button>
+      <button class="chip" data-msg="查看当前进度摘要">Progress</button>
+      <button class="chip" data-msg="列出所有高优先级任务">High priority</button>
+      <button class="chip" data-msg="有哪些任务快要截止了">Upcoming deadlines</button>
     </div>
 
     <div class="input-area" id="input-area">
-      <input type="file" id="file-input" hidden
-             accept=".txt,.md,.json,.csv,.py,.js,.ts,.xml,.yaml,.yml,.pdf" />
-      <input type="file" id="img-input" hidden
-             accept="image/jpeg,image/png,image/webp,image/gif" />
-      <button id="file-btn"  class="input-btn" title="上传文档 (Ctrl+U)">📎</button>
-      <button id="ocr-btn"   class="input-btn" title="图片识别任务">📸</button>
+      <input type="file" id="file-input" hidden accept=".txt,.md,.json,.csv,.py,.js,.ts,.xml,.yaml,.yml,.pdf" />
+      <input type="file" id="img-input"  hidden accept="image/jpeg,image/png,image/webp,image/gif" />
+      <button id="file-btn" class="input-btn" title="Attach document">
+        <svg viewBox="0 0 14 14" fill="none" width="13"><path d="M8.5 1.5L12 5v7.5A.5.5 0 0111.5 13h-9A.5.5 0 012 12.5v-11A.5.5 0 012.5 1H8.5zM8 1v4.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="ocr-btn" class="input-btn" title="Scan image for tasks">
+        <svg viewBox="0 0 14 14" fill="none" width="13"><rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M1 5V2.5A1.5 1.5 0 012.5 1H5M9 1h1.5A1.5 1.5 0 0113 2.5V5M13 9v1.5A1.5 1.5 0 0111.5 13H9M5 13H3.5A1.5 1.5 0 012 11.5V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
       <div class="textarea-wrap">
-        <textarea id="chat-input"
-                  placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
-                  rows="1"></textarea>
+        <textarea id="chat-input" placeholder="Message Hermes… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
       </div>
-      <button id="send-btn" class="send-btn" title="发送 (Enter)">
-        <span id="send-icon">↑</span>
+      <button id="send-btn" class="send-btn" title="Send (Enter)">
+        <svg viewBox="0 0 14 14" fill="none" width="13"><path d="M2 12L12 7 2 2v3.5L9 7l-7 1.5V12z" fill="currentColor"/></svg>
       </button>
     </div>
 
-    <!-- Drop overlay -->
     <div id="drop-overlay" class="drop-overlay hidden">
       <div class="drop-hint">
-        <span>📸</span>
-        <p>松开以识别图片中的任务</p>
+        <svg viewBox="0 0 40 40" fill="none" width="40"><rect x="2" y="2" width="36" height="36" rx="8" stroke="currentColor" stroke-width="1.5" opacity=".4"/><circle cx="20" cy="20" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M2 14h4M2 26h4M34 14h4M34 26h4M14 2v4M26 2v4M14 34v4M26 34v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <p>Drop to scan for tasks</p>
       </div>
     </div>
   </main>
 
-  <!-- Task detail resize handle (only visible when detail panel is open) -->
-  <div id="rz-detail" class="resize-handle hidden" title="拖动调整宽度"></div>
+  <!-- Task detail resize handle -->
+  <div id="rz-detail" class="resize-handle hidden" title="Drag to resize"></div>
 
   <!-- ── Task detail panel ──────────────────────────────────── -->
   <div id="task-detail-panel" class="task-detail-panel hidden">
@@ -254,35 +290,37 @@
     <div class="tdp-header">
       <span id="tdp-name" class="tdp-name" contenteditable="true" spellcheck="false"></span>
       <div class="tdp-btns">
-        <button id="tdp-archive-btn" class="btn-danger btn-sm" title="归档此任务">归档</button>
-        <button id="tdp-close-btn"   class="icon-btn"         title="关闭 (Esc)">✕</button>
+        <button id="tdp-archive-btn" class="btn-danger btn-sm">Archive</button>
+        <button id="tdp-close-btn" class="icon-btn" title="Close (Esc)">
+          <svg viewBox="0 0 12 12" fill="none" width="10"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
       </div>
     </div>
 
     <div class="tdp-badges">
-      <span id="tdp-status-badge"   class="status-badge"   title="点击切换状态"></span>
-      <span id="tdp-priority-badge" class="priority-badge" title="点击切换优先级"></span>
+      <span id="tdp-status-badge"   class="status-badge"   title="Click to cycle status"></span>
+      <span id="tdp-priority-badge" class="priority-badge" title="Click to cycle priority"></span>
       <span id="tdp-deadline-badge" class="deadline-badge hidden"></span>
     </div>
 
     <div class="quick-actions">
-      <button class="qa-btn" data-status="todo">⬜ Todo</button>
-      <button class="qa-btn" data-status="in_progress">🟡 进行中</button>
-      <button class="qa-btn" data-status="done">✅ 完成</button>
-      <button class="qa-btn" data-status="blocked">🔴 阻塞</button>
+      <button class="qa-btn" data-status="todo">To Do</button>
+      <button class="qa-btn" data-status="in_progress">In Progress</button>
+      <button class="qa-btn" data-status="done">Done</button>
+      <button class="qa-btn" data-status="blocked">Blocked</button>
     </div>
 
     <div class="tdp-fields">
       <div class="tdp-field-row">
-        <label class="field-label">截止日期</label>
+        <label class="field-label">Deadline</label>
         <input id="tdp-deadline-input" type="date" class="field-input" />
       </div>
       <div class="tdp-field-row">
-        <label class="field-label">标签</label>
+        <label class="field-label">Tags</label>
         <div id="tdp-tags" class="tdp-tags"></div>
       </div>
       <div class="tdp-field-row col">
-        <label class="field-label">备注</label>
+        <label class="field-label">Notes</label>
         <div id="tdp-notes" class="tdp-notes"></div>
       </div>
       <div id="tdp-meta"   class="tdp-meta"></div>
@@ -290,11 +328,13 @@
     </div>
 
     <div class="tdp-chat">
-      <div class="tdp-chat-hd">💬 和 Hermes 讨论此任务</div>
+      <div class="tdp-chat-hd">Ask Hermes about this task</div>
       <div id="tdp-messages" class="tdp-messages"></div>
       <div class="tdp-input-row">
-        <textarea id="tdp-input" placeholder="针对此任务提问…" rows="1"></textarea>
-        <button id="tdp-send-btn" class="send-btn send-btn-sm">↑</button>
+        <textarea id="tdp-input" placeholder="Ask about this task…" rows="1"></textarea>
+        <button id="tdp-send-btn" class="send-btn send-btn-sm">
+          <svg viewBox="0 0 14 14" fill="none" width="11"><path d="M2 12L12 7 2 2v3.5L9 7l-7 1.5V12z" fill="currentColor"/></svg>
+        </button>
       </div>
     </div>
 
@@ -304,17 +344,18 @@
   <div id="shortcuts-modal" class="modal-overlay hidden">
     <div class="modal-card shortcuts-card">
       <div class="modal-hd">
-        <span class="modal-title">⌨️ 快捷键</span>
-        <button id="shortcuts-close" class="icon-btn">✕</button>
+        <span class="modal-title">Keyboard Shortcuts</span>
+        <button id="shortcuts-close" class="icon-btn"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>
       <div class="shortcuts-grid">
-        <div class="shortcut-row"><kbd>N</kbd><span>新建任务</span></div>
-        <div class="shortcut-row"><kbd>/</kbd><span>聚焦搜索</span></div>
-        <div class="shortcut-row"><kbd>B</kbd><span>折叠/展开侧边栏</span></div>
-        <div class="shortcut-row"><kbd>Esc</kbd><span>关闭面板 / 清空搜索</span></div>
-        <div class="shortcut-row"><kbd>Enter</kbd><span>发送消息</span></div>
-        <div class="shortcut-row"><kbd>Shift+Enter</kbd><span>消息换行</span></div>
-        <div class="shortcut-row"><kbd>?</kbd><span>显示此帮助</span></div>
+        <div class="shortcut-row"><kbd>N</kbd><span>New task</span></div>
+        <div class="shortcut-row"><kbd>/</kbd><span>Focus search</span></div>
+        <div class="shortcut-row"><kbd>B</kbd><span>Toggle sidebar</span></div>
+        <div class="shortcut-row"><kbd>Esc</kbd><span>Close / clear</span></div>
+        <div class="shortcut-row"><kbd>Enter</kbd><span>Send message</span></div>
+        <div class="shortcut-row"><kbd>Shift+Enter</kbd><span>New line</span></div>
+        <div class="shortcut-row"><kbd>Ctrl+V</kbd><span>Paste image to scan</span></div>
+        <div class="shortcut-row"><kbd>?</kbd><span>Show shortcuts</span></div>
       </div>
     </div>
   </div>
@@ -323,16 +364,16 @@
   <div id="ocr-modal" class="modal-overlay hidden">
     <div class="modal-card ocr-card">
       <div class="modal-hd">
-        <span class="modal-title">📋 识别结果确认</span>
-        <button id="ocr-modal-close" class="icon-btn">✕</button>
+        <span class="modal-title">Scanned Tasks — Confirm</span>
+        <button id="ocr-modal-close" class="icon-btn"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>
-      <p class="modal-desc">识别到以下任务，可逐条编辑后批量创建：</p>
+      <p class="modal-desc">Review and edit before creating:</p>
       <div id="ocr-task-list" class="ocr-task-list"></div>
       <div class="modal-ft">
-        <button id="ocr-select-all" class="btn-ghost btn-sm">全选</button>
+        <button id="ocr-select-all" class="btn-ghost btn-sm">Select all</button>
         <div style="flex:1"></div>
-        <button id="ocr-cancel-btn"  class="btn-ghost">取消</button>
-        <button id="ocr-confirm-btn" class="btn-primary">创建选中</button>
+        <button id="ocr-cancel-btn"  class="btn-ghost">Cancel</button>
+        <button id="ocr-confirm-btn" class="btn-primary">Create selected</button>
       </div>
     </div>
   </div>

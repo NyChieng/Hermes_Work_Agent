@@ -99,10 +99,29 @@ if (state.token) { $('login-overlay').style.display='none'; $('app').classList.r
 
 // ── App init ───────────────────────────────────────────────────────────────
 async function initApp() {
+  initTheme();
   initResizablePanels();
   initSidebarCollapse();
   initKeyboardShortcuts();
   await Promise.all([loadSummary(), loadBoard(), loadMood(), loadNotionStatus()]);
+}
+
+// ── Theme toggle ───────────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  applyTheme(saved);
+  $('theme-toggle-btn')?.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  });
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  const darkIcon  = $('theme-icon-dark');
+  const lightIcon = $('theme-icon-light');
+  if (darkIcon)  darkIcon.classList.toggle('hidden',  theme === 'light');
+  if (lightIcon) lightIcon.classList.toggle('hidden', theme === 'dark');
 }
 
 // ── Resizable panels ───────────────────────────────────────────────────────
@@ -190,17 +209,28 @@ function initSidebarCollapse() {
   $('sidebar-collapse-btn').addEventListener('click', toggleSidebar);
 }
 function toggleSidebar() {
-  const s = $('sidebar');
+  const s        = $('sidebar');
   const collapsed = s.classList.toggle('collapsed');
   $('sidebar-collapse-btn').textContent = collapsed ? '›' : '‹';
   $('rz-sidebar').style.display = collapsed ? 'none' : '';
+  const tab = $('sidebar-tab');
+  if (tab) tab.classList.toggle('visible', collapsed);
   localStorage.setItem('sidebar-collapsed', collapsed);
 }
+// Sidebar expand tab click
+document.addEventListener('DOMContentLoaded', () => {
+  $('sidebar-tab')?.addEventListener('click', toggleSidebar);
+});
+// Also wire immediately in case DOMContentLoaded already fired
+$('sidebar-tab')?.addEventListener('click', toggleSidebar);
+
 // Restore collapsed state
 if (localStorage.getItem('sidebar-collapsed') === 'true') {
   setTimeout(() => {
-    const s = $('sidebar');
-    if (s) { s.classList.add('collapsed'); $('sidebar-collapse-btn').textContent = '›'; $('rz-sidebar').style.display='none'; }
+    const s   = $('sidebar');
+    const tab = $('sidebar-tab');
+    if (s)   { s.classList.add('collapsed'); $('sidebar-collapse-btn').textContent = '›'; $('rz-sidebar').style.display = 'none'; }
+    if (tab) tab.classList.add('visible');
   }, 0);
 }
 
@@ -550,15 +580,17 @@ const $chatInput = $('chat-input');
 const $sendBtn   = $('send-btn');
 const $sendIcon  = $('send-icon');
 
+const _AGENT_AV = `<div class="msg-av-wrap"><svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M7 17L12 7l5 10M9.5 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+const _USER_AV  = `<div class="msg-av-wrap"><svg viewBox="0 0 24 24" fill="none" width="13" height="13"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>`;
+
 function appendMsg(role, text, withTs = true) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  const av = role==='agent' ? '⚡' : '🙂';
   const ts = withTs ? `<div class="msg-ts">${now()}</div>` : '';
   div.innerHTML = `
-    ${role==='agent' ? `<span class="msg-av">${av}</span>` : ''}
+    ${role==='agent' ? _AGENT_AV : ''}
     <div class="msg-wrap"><div class="msg-bubble">${esc(text)}</div>${ts}</div>
-    ${role!=='agent' ? `<span class="msg-av">${av}</span>` : ''}
+    ${role!=='agent' ? _USER_AV : ''}
   `;
   $msgs.appendChild(div);
   $msgs.scrollTop = $msgs.scrollHeight;
@@ -568,7 +600,7 @@ function appendMsg(role, text, withTs = true) {
 function appendTypingEl() {
   const div = document.createElement('div');
   div.className='msg agent'; div.id='typing-ind';
-  div.innerHTML='<span class="msg-av">⚡</span><div class="typing-dots"><span></span><span></span><span></span></div>';
+  div.innerHTML=_AGENT_AV+'<div class="typing-dots"><span></span><span></span><span></span></div>';
   $msgs.appendChild(div); $msgs.scrollTop=$msgs.scrollHeight;
   return div;
 }
@@ -695,9 +727,9 @@ function appendTaskMsg(role, text) {
   div.className = `msg ${role==='user'?'user':'agent'}`;
   div.style.maxWidth='100%';
   div.innerHTML = `
-    ${role!=='user' ? '<span class="msg-av" style="font-size:14px">⚡</span>' : ''}
+    ${role!=='user' ? _AGENT_AV : ''}
     <div class="msg-bubble" style="font-size:12.5px">${esc(text)}</div>
-    ${role==='user' ? '<span class="msg-av" style="font-size:14px">🙂</span>' : ''}
+    ${role==='user' ? _USER_AV : ''}
   `;
   el.appendChild(div); el.scrollTop=el.scrollHeight;
   return div.querySelector('.msg-bubble');
