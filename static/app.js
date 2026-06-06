@@ -147,8 +147,22 @@ function initResizablePanels() {
   restoreWidth($('task-detail-panel'), 'detail-w');
 }
 
+// Global safety: if window loses focus during drag, stop immediately
+window.addEventListener('blur', () => {
+  document.body.classList.remove('is-resizing');
+  document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
+});
+
 function makeResizable({ handle, target, direction, min, max, storageKey }) {
   let dragging = false, startX, startW;
+
+  const stopDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('is-resizing');
+    handle.classList.remove('active');
+    if (storageKey && target.style.width) localStorage.setItem(storageKey, target.style.width);
+  };
 
   handle.addEventListener('mousedown', e => {
     dragging = true;
@@ -159,7 +173,6 @@ function makeResizable({ handle, target, direction, min, max, storageKey }) {
     e.preventDefault();
   });
 
-  // Touch support
   handle.addEventListener('touchstart', e => {
     dragging = true;
     startX   = e.touches[0].clientX;
@@ -177,18 +190,10 @@ function makeResizable({ handle, target, direction, min, max, storageKey }) {
     target.style.flex     = 'none';
   };
 
-  const onUp = (clientX) => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.classList.remove('is-resizing');
-    handle.classList.remove('active');
-    if (storageKey) localStorage.setItem(storageKey, target.style.width);
-  };
-
   document.addEventListener('mousemove', e => onMove(e.clientX));
-  document.addEventListener('touchmove', e => onMove(e.touches[0].clientX));
-  document.addEventListener('mouseup',   e => onUp(e.clientX));
-  document.addEventListener('touchend',  e => onUp(e.changedTouches[0].clientX));
+  document.addEventListener('touchmove', e => onMove(e.touches[0].clientX), { passive: true });
+  document.addEventListener('mouseup',   stopDrag);
+  document.addEventListener('touchend',  stopDrag);
 
   // Double-click resets to default
   handle.addEventListener('dblclick', () => {
@@ -578,7 +583,7 @@ $('weekly-btn').addEventListener('click', async () => {
 const $msgs      = $('messages');
 const $chatInput = $('chat-input');
 const $sendBtn   = $('send-btn');
-const $sendIcon  = $('send-icon');
+// No text send-icon in this build — spinner handled via CSS class on button
 
 const _AGENT_AV = `<div class="msg-av-wrap"><svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M7 17L12 7l5 10M9.5 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
 const _USER_AV  = `<div class="msg-av-wrap"><svg viewBox="0 0 24 24" fill="none" width="13" height="13"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>`;
@@ -587,11 +592,10 @@ function appendMsg(role, text, withTs = true) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
   const ts = withTs ? `<div class="msg-ts">${now()}</div>` : '';
-  div.innerHTML = `
-    ${role==='agent' ? _AGENT_AV : ''}
-    <div class="msg-wrap"><div class="msg-bubble">${esc(text)}</div>${ts}</div>
-    ${role!=='agent' ? _USER_AV : ''}
-  `;
+  div.innerHTML =
+    (role === 'agent' ? _AGENT_AV : '') +
+    `<div class="msg-content"><div class="msg-bubble">${esc(text)}</div>${ts}</div>` +
+    (role !== 'agent' ? _USER_AV : '');
   $msgs.appendChild(div);
   $msgs.scrollTop = $msgs.scrollHeight;
   return div.querySelector('.msg-bubble');
@@ -608,13 +612,13 @@ function appendTypingEl() {
 async function sendMessage(text) {
   if ((!text.trim() && !state.pastedImage) || state.sending) return;
   state.sending = true;
-  $sendBtn.disabled=true; $sendIcon.className='spin'; $sendIcon.textContent='↻';
+  $sendBtn.disabled=true; $sendBtn.classList.add('loading');
 
   // If there's a pasted image, run OCR first
   if (state.pastedImage) {
     const imgFile = state.pastedImage.file;
     clearPastedImage();
-    state.sending = false; $sendBtn.disabled=false; $sendIcon.className=''; $sendIcon.textContent='↑';
+    state.sending=false; $sendBtn.disabled=false; $sendBtn.classList.remove('loading');
     runOcr(imgFile, text);
     return;
   }
