@@ -6,3 +6,4 @@ schedule>=1.2.1
 httpx>=0.26.0
 rich>=13.7.0
 python-dotenv>=1.0.0
+pypdf>=4.0.0

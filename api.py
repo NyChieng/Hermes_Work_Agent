@@ -4,13 +4,15 @@ All routes (except /api/login and /) require X-Auth-Token header.
 """
 
 import asyncio
+import csv
+import io
 import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -210,3 +212,138 @@ def root():
     if index.exists():
         return FileResponse(str(index))
     return {"status": "Work Progress Agent API running"}
+
+
+# ── file upload ───────────────────────────────────────────────────────────────
+
+@app.post("/api/upload")
+async def api_upload(request: Request, file: UploadFile = File(...)):
+    _verify(request)
+    raw = await file.read()
+    filename = file.filename or "file"
+
+    # PDF extraction
+    if filename.lower().endswith(".pdf"):
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(raw))
+            content = "\n".join(
+                page.extract_text() or "" for page in reader.pages
+            )
+        except ImportError:
+            raise HTTPException(400, "PDF 支持未安装，请运行: pip install pypdf")
+        except Exception as exc:
+            raise HTTPException(400, f"PDF 读取失败: {exc}")
+    else:
+        # Try UTF-8 then GBK for text files
+        for enc in ("utf-8", "gbk", "latin-1"):
+            try:
+                content = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            raise HTTPException(
+                400, "不支持此格式，请上传文本文件或 PDF"
+            )
+
+    return {"filename": filename, "content": content[:8000]}
+
+
+# ── export ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/export/csv")
+def api_export_csv(request: Request):
+    _verify(request)
+    from tools import list_tasks
+
+    tasks = list_tasks(limit=500)
+    buf = io.StringIO()
+    writer = csv.DictWriter(
+        buf,
+        fieldnames=["name", "status", "priority", "notes", "tags", "updated"],
+        extrasaction="ignore",
+    )
+    writer.writeheader()
+    writer.writerows(tasks)
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=tasks.csv"},
+    )
+
+
+@app.get("/api/export/md")
+def api_export_md(request: Request):
+    _verify(request)
+    from tools import list_tasks
+
+    sections = {
+        "in_progress": ("\U0001f7e1 进行中", False),
+        "blocked":     ("\U0001f534 阻塞",   False),
+        "todo":        ("⬜ 未开始", False),
+        "done":        ("✅ 已完成", True),
+    }
+    lines = ["# 工作进度\n"]
+    for status, (heading, checked) in sections.items():
+        tasks = list_tasks(status=status, limit=200)
+        if not tasks:
+            continue
+        lines.append(f"## {heading}\n")
+        for t in tasks:
+            box = "[x]" if checked else "[ ]"
+            note = f" — {t['notes']}" if t.get("notes") else ""
+            lines.append(f"- {box} **{t['name']}**{note}")
+        lines.append("")
+
+    return Response(
+        content="\n".join(lines),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=tasks.md"},
+    )
+
+
+# ── task-scoped chat (SSE) ────────────────────────────────────────────────────
+
+class TaskChatRequest(BaseModel):
+    message: str
+    history: list = []
+
+
+@app.post("/api/chat/task/{task_name}")
+async def api_chat_task(request: Request, task_name: str, body: TaskChatRequest):
+    _verify(request)
+
+    # Fetch current task data to inject as context
+    from tools import query_task
+    results = query_task(task_name)
+    task = next((t for t in results if t["name"] == task_name), None)
+    if not task:
+        task = results[0] if results else {"name": task_name}
+
+    context_prefix = (
+        f"[任务上下文] 当前任务：{task.get('name','')} | "
+        f"状态：{task.get('status','')} | "
+        f"优先级：{task.get('priority','')} | "
+        f"备注：{task.get('notes','')} | "
+        f"标签：{task.get('tags','')}\n\n"
+    )
+    enriched_message = context_prefix + body.message
+
+    async def generate():
+        loop = asyncio.get_event_loop()
+        from agent import run_agent
+        try:
+            answer, _ = await loop.run_in_executor(
+                None, run_agent, enriched_message, body.history
+            )
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n"
+            return
+
+        for char in answer:
+            yield f"data: {json.dumps({'char': char}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.02)
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
