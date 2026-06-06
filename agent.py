@@ -1,6 +1,5 @@
 """
-Work Progress Agent — SQLite + summary-cache + memory edition.
-Hermes-style ReAct loop with dynamic persona and emotional memory.
+Work Progress Agent — ReAct 循环，DeepSeek 驱动，三种人格 + 情绪记忆。
 """
 
 import json
@@ -33,7 +32,7 @@ console = Console()
 
 _api_key = os.getenv("DEEPSEEK_API_KEY")
 if not _api_key:
-    console.print("[bold red]错误：未找到 DEEPSEEK_API_KEY，请检查 .env 文件。[/bold red]")
+    console.print("[bold red]错误：DEEPSEEK_API_KEY 没找到，检查一下 .env 文件。[/bold red]")
     sys.exit(1)
 
 client    = OpenAI(api_key=_api_key, base_url="https://api.deepseek.com")
@@ -41,7 +40,7 @@ MODEL     = "deepseek-chat"
 MAX_STEPS = 5
 
 
-# ── mood management ───────────────────────────────────────────────────────────
+# ── 人格切换 ───────────────────────────────────────────────────────────────────
 
 def set_mood(mode: str) -> str:
     if mode not in MOOD_LABELS:
@@ -50,7 +49,7 @@ def set_mood(mode: str) -> str:
     return f"切换到{MOOD_LABELS[mode]}"
 
 
-# ── tool dispatch ─────────────────────────────────────────────────────────────
+# ── 工具分发 ───────────────────────────────────────────────────────────────────
 
 _TOOL_MAP = {
     "get_summary":  lambda a: get_summary(),
@@ -65,16 +64,16 @@ _TOOL_MAP = {
 def _call_tool(name: str, args: dict):
     fn = _TOOL_MAP.get(name)
     if fn is None:
-        return {"error": f"未知工具：{name}"}
+        return {"error": f"没这个工具：{name}"}
     try:
         return fn(args)
     except TypeError as exc:
-        return {"error": f"参数错误 ({name}): {exc}"}
+        return {"error": f"参数不对 ({name}): {exc}"}
     except Exception as exc:
         return {"error": str(exc)}
 
 
-# ── response parsing ──────────────────────────────────────────────────────────
+# ── 响应解析 ───────────────────────────────────────────────────────────────────
 
 _TOOL_CALL_RE = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.DOTALL)
 _THOUGHT_RE   = re.compile(
@@ -103,15 +102,15 @@ def _final_answer(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-# ── ReAct loop ────────────────────────────────────────────────────────────────
+# ── ReAct 主循环 ───────────────────────────────────────────────────────────────
 
 def run_agent(
     user_input: str,
     history: list[dict],
 ) -> tuple[str, list[dict]]:
     """
-    Execute one user turn.  Returns (answer, updated_history).
-    Persona + memory are rebuilt each call so changes take effect immediately.
+    执行一轮对话，返回 (答案, 更新后的历史)。
+    每次调用都重新构建系统提示，确保人格切换立即生效。
     """
     mood         = get_mood()
     memory_block = build_memory_block(get_memory_context())
@@ -177,11 +176,41 @@ def run_agent(
         ]
         return reply, _trim_history(new_history)
 
-    return "⚠️ 已达最大推理步数，请重新描述您的需求。", history
+    # MAX_STEPS 超限：强制让 LLM 用已有信息尽力回答
+    work_msgs.append({
+        "role":    "user",
+        "content": "根据目前已有的信息，请直接给出 Final Answer，不要再调用工具了。",
+    })
+    try:
+        final_resp = client.chat.completions.create(
+            model=MODEL,
+            messages=work_msgs,
+            temperature=0.3,
+            max_tokens=512,
+        )
+        final_reply = final_resp.choices[0].message.content
+        answer = _final_answer(final_reply) or final_reply
+    except Exception:
+        answer = "处理时间有点长，能换种方式问我吗？"
+
+    new_history = history + [
+        {"role": "user",      "content": user_input},
+        {"role": "assistant", "content": answer},
+    ]
+    return answer, _trim_history(new_history)
 
 
-def _trim_history(history: list[dict], max_turns: int = 6) -> list[dict]:
-    return history[-(max_turns * 2):]
+def _trim_history(history: list[dict], max_tokens: int = 3000) -> list[dict]:
+    """
+    按字符数估算 token（每4字符≈1 token），超过 max_tokens 就从头裁剪。
+    保证返回的始终是完整的 user/assistant 对。
+    """
+    while len(history) >= 2:
+        total_chars = sum(len(m.get("content", "")) for m in history)
+        if total_chars / 4 <= max_tokens:
+            break
+        history = history[2:]
+    return history
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -214,8 +243,7 @@ def main() -> None:
         )
     )
     _print_summary(get_cached_summary())
-    _print_mood_status = _print_mood
-    _print_mood_status()
+    _print_mood()
     console.print()
 
     history: list[dict] = []

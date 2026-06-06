@@ -1,155 +1,220 @@
 <!DOCTYPE html>
-<!-- Railway 免费版每月 $5 credits，轻量 AI agent 完全够用 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Work Progress Agent</title>
+  <title>Hermes — Work Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-<!-- ── Login overlay ─────────────────────────────────────────── -->
+<!-- ── Login ─────────────────────────────────────────────────── -->
 <div id="login-overlay">
   <div class="login-card">
-    <div class="login-logo">🤖</div>
-    <h1 class="login-title">Work Progress Agent</h1>
-    <p class="login-sub">输入访问密码</p>
+    <div class="login-brand">
+      <span class="login-logo">⚡</span>
+      <span class="login-brand-name">Hermes</span>
+    </div>
+    <h1 class="login-title">Work Agent</h1>
+    <p class="login-sub">输入访问密码继续</p>
     <input id="pwd-input" type="password" placeholder="Password" autocomplete="current-password" />
-    <button id="login-btn">进入</button>
+    <button id="login-btn">进入工作台</button>
     <p id="login-err" class="login-err"></p>
   </div>
 </div>
 
-<!-- ── Main app (hidden until login) ─────────────────────────── -->
+<!-- ── App ───────────────────────────────────────────────────── -->
 <div id="app" class="hidden">
 
-  <!-- Left panel: task board -->
-  <aside id="board-panel">
-    <header class="board-header">
-      <span class="board-title">📋 工作进度</span>
-      <button id="new-task-btn" class="btn-primary btn-sm">+ 新任务</button>
-    </header>
+  <!-- ── Sidebar ───────────────────────────────────────────── -->
+  <aside id="sidebar">
 
-    <!-- Summary cards -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <span class="stat-num" id="stat-total">0</span>
-        <span class="stat-label">总任务</span>
+    <!-- Brand -->
+    <div class="sidebar-brand">
+      <span class="brand-icon">⚡</span>
+      <span class="brand-name">Hermes</span>
+    </div>
+
+    <!-- Stats summary -->
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-val" id="stat-total">0</span>
+        <span class="stat-lbl">总任务</span>
       </div>
-      <div class="stat-card done">
-        <span class="stat-num" id="stat-done">0</span>
-        <span class="stat-label">已完成</span>
+      <div class="stat-item done">
+        <span class="stat-val" id="stat-done">0</span>
+        <span class="stat-lbl">已完成</span>
       </div>
-      <div class="stat-card wip">
-        <span class="stat-num" id="stat-wip">0</span>
-        <span class="stat-label">进行中</span>
+      <div class="stat-item wip">
+        <span class="stat-val" id="stat-wip">0</span>
+        <span class="stat-lbl">进行中</span>
       </div>
-      <div class="stat-card blocked">
-        <span class="stat-num" id="stat-blocked">0</span>
-        <span class="stat-label">阻塞</span>
+      <div class="stat-item blocked">
+        <span class="stat-val" id="stat-blocked">0</span>
+        <span class="stat-lbl">阻塞</span>
       </div>
     </div>
 
-    <!-- Mood switcher -->
-    <div class="mood-row">
-      <button class="mood-btn active" data-mood="friend">😏 损友</button>
-      <button class="mood-btn" data-mood="drill">🪖 军训</button>
-      <button class="mood-btn" data-mood="boss">😔 怨念</button>
+    <!-- Progress bar -->
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>完成进度</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
     </div>
 
-    <!-- Inline add-task form (hidden by default) -->
+    <!-- Persona switcher -->
+    <div class="persona-section">
+      <div class="section-label">鞭策模式</div>
+      <div class="persona-row">
+        <button class="persona-btn active" data-mood="friend">😏 损友</button>
+        <button class="persona-btn" data-mood="drill">🪖 军训</button>
+        <button class="persona-btn" data-mood="boss">😔 怨念</button>
+      </div>
+    </div>
+
+    <!-- New task button -->
+    <button id="new-task-btn" class="btn-new-task">
+      <span>＋</span> 新建任务
+    </button>
+
+    <!-- Add task form -->
     <div id="add-form" class="add-form hidden">
       <input id="new-name" placeholder="任务名称" />
       <div class="add-form-row">
         <select id="new-priority">
-          <option value="high">🔴 高</option>
-          <option value="medium" selected>🟡 中</option>
-          <option value="low">🔵 低</option>
+          <option value="high">🔴 高优先</option>
+          <option value="medium" selected>🟡 中优先</option>
+          <option value="low">🔵 低优先</option>
         </select>
-        <input id="new-notes" placeholder="备注（可选）" />
+        <input id="new-deadline" type="date" title="截止日期（可选）" />
       </div>
-      <div class="add-form-row">
+      <input id="new-notes" placeholder="备注（可选）" />
+      <div class="add-form-actions">
         <button id="add-submit-btn" class="btn-primary btn-sm">添加</button>
         <button id="add-cancel-btn" class="btn-ghost btn-sm">取消</button>
       </div>
     </div>
 
-    <!-- Task columns -->
-    <div class="columns-wrap" id="columns-wrap">
+    <!-- Kanban columns -->
+    <div class="kanban" id="kanban">
       <div class="col" id="col-todo">
-        <div class="col-header">⬜ 未开始 <span class="col-count" id="cnt-todo">0</span></div>
+        <div class="col-header">
+          <span class="col-dot todo-dot"></span>
+          <span class="col-name">未开始</span>
+          <span class="col-count" id="cnt-todo">0</span>
+        </div>
         <div class="col-body" id="list-todo"></div>
       </div>
       <div class="col" id="col-in_progress">
-        <div class="col-header">🟡 进行中 <span class="col-count" id="cnt-in_progress">0</span></div>
+        <div class="col-header">
+          <span class="col-dot wip-dot"></span>
+          <span class="col-name">进行中</span>
+          <span class="col-count" id="cnt-in_progress">0</span>
+        </div>
         <div class="col-body" id="list-in_progress"></div>
       </div>
       <div class="col" id="col-done">
-        <div class="col-header">✅ 已完成 <span class="col-count" id="cnt-done">0</span></div>
+        <div class="col-header">
+          <span class="col-dot done-dot"></span>
+          <span class="col-name">已完成</span>
+          <span class="col-count" id="cnt-done">0</span>
+        </div>
         <div class="col-body" id="list-done"></div>
       </div>
       <div class="col" id="col-blocked">
-        <div class="col-header">🔴 阻塞 <span class="col-count" id="cnt-blocked">0</span></div>
+        <div class="col-header">
+          <span class="col-dot blocked-dot"></span>
+          <span class="col-name">阻塞</span>
+          <span class="col-count" id="cnt-blocked">0</span>
+        </div>
         <div class="col-body" id="list-blocked"></div>
       </div>
     </div>
 
-    <!-- Notion sync footer -->
-    <footer class="board-footer">
-      <span id="notion-status" class="notion-status">Notion 未配置</span>
+    <!-- Footer -->
+    <footer class="sidebar-footer">
+      <div class="footer-left">
+        <span id="notion-status" class="notion-dot">●</span>
+        <span id="notion-label" class="notion-label">Notion</span>
+      </div>
       <div class="footer-actions">
         <div class="export-wrap">
-          <button id="export-btn" class="btn-ghost btn-sm">📥 导出</button>
+          <button id="export-btn" class="icon-btn" title="导出">↓</button>
           <div id="export-dropdown" class="export-dropdown hidden">
-            <button id="export-csv-btn">📊 下载 CSV</button>
-            <button id="export-md-btn">📝 下载 Markdown</button>
+            <button id="export-csv-btn">📊 导出 CSV</button>
+            <button id="export-md-btn">📝 导出 Markdown</button>
           </div>
         </div>
-        <button id="sync-btn" class="btn-ghost btn-sm" title="手动同步 Notion">
-          <span id="sync-icon">🔄</span> 同步
+        <button id="sync-btn" class="icon-btn" title="同步 Notion">
+          <span id="sync-icon">⟳</span>
         </button>
       </div>
     </footer>
   </aside>
 
-  <!-- Right panel: chat -->
+  <!-- ── Chat panel ─────────────────────────────────────────── -->
   <main id="chat-panel">
+
+    <!-- Header -->
     <header class="chat-header">
-      <span id="agent-avatar" class="agent-avatar">🤖</span>
-      <div>
-        <div class="agent-name">Work Progress Agent</div>
-        <div id="mood-label" class="agent-mood">😏 损友模式</div>
+      <div class="agent-info">
+        <span id="agent-avatar" class="agent-avatar">⚡</span>
+        <div class="agent-meta">
+          <div class="agent-name">Hermes</div>
+          <div id="mood-label" class="agent-status">😏 损友模式</div>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        <button id="weekly-btn" class="chip-btn" title="生成周报">📋 周报</button>
       </div>
     </header>
 
-    <div id="messages" class="messages"></div>
-
-    <!-- Quick commands -->
-    <div class="quick-cmds">
-      <button class="quick-btn" data-msg="今日工作计划">☀️ 今日计划</button>
-      <button class="quick-btn" data-msg="查看当前进度摘要">📊 查看进度</button>
-      <button class="quick-btn" data-msg="列出所有任务">📋 列出任务</button>
-      <button class="quick-btn" data-msg="手动同步 Notion">🔄 同步Notion</button>
+    <!-- Messages area -->
+    <div id="messages" class="messages">
+      <!-- Welcome message -->
+      <div class="msg agent welcome-msg">
+        <span class="msg-avatar">⚡</span>
+        <div class="msg-bubble">
+          嘿，工作台准备好了。<br>
+          直接说任务，或者发一张图片让我帮你识别待办事项。
+        </div>
+      </div>
     </div>
 
-    <div class="input-wrap">
+    <!-- Quick commands -->
+    <div class="quick-bar">
+      <button class="chip" data-msg="今日工作计划">☀️ 今日计划</button>
+      <button class="chip" data-msg="查看当前进度摘要">📊 进度</button>
+      <button class="chip" data-msg="列出所有高优先级任务">🔴 高优先</button>
+      <button class="chip" data-msg="有哪些任务快到期了">⏰ 即将到期</button>
+    </div>
+
+    <!-- Input area -->
+    <div class="input-area">
       <input type="file" id="file-input" hidden
              accept=".txt,.md,.json,.csv,.py,.js,.ts,.xml,.yaml,.yml,.pdf" />
-      <button id="file-btn" class="file-btn" title="上传文件">📎</button>
-      <textarea id="chat-input" placeholder="输入消息… (Enter 发送，Shift+Enter 换行)" rows="1"></textarea>
-      <button id="send-btn">
-        <span id="send-icon">➤</span>
+      <input type="file" id="img-input" hidden
+             accept="image/jpeg,image/png,image/webp,image/gif" />
+      <button id="file-btn" class="input-action-btn" title="上传文档">📎</button>
+      <button id="ocr-btn"  class="input-action-btn" title="图片识别任务">📸</button>
+      <textarea id="chat-input"
+                placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
+                rows="1"></textarea>
+      <button id="send-btn" class="send-btn">
+        <span id="send-icon">↑</span>
       </button>
     </div>
   </main>
 
-  <!-- Task detail panel (slides in from right on task click) -->
+  <!-- ── Task detail panel ──────────────────────────────────── -->
   <div id="task-detail-panel" class="task-detail-panel hidden">
 
-    <!-- Header -->
     <div class="tdp-header">
       <span id="tdp-name" class="tdp-name" contenteditable="true" spellcheck="false"></span>
       <div class="tdp-header-btns">
@@ -158,13 +223,12 @@
       </div>
     </div>
 
-    <!-- Badges (clickable to cycle) -->
     <div class="tdp-badges">
-      <span id="tdp-status-badge" class="status-badge" title="点击切换状态"></span>
+      <span id="tdp-status-badge"   class="status-badge"   title="点击切换状态"></span>
       <span id="tdp-priority-badge" class="priority-badge" title="点击切换优先级"></span>
+      <span id="tdp-deadline-badge" class="deadline-badge hidden"></span>
     </div>
 
-    <!-- Quick-action status buttons -->
     <div class="quick-actions">
       <button class="qa-btn" data-status="todo">⬜ Todo</button>
       <button class="qa-btn" data-status="in_progress">🟡 进行中</button>
@@ -172,25 +236,42 @@
       <button class="qa-btn" data-status="blocked">🔴 阻塞</button>
     </div>
 
-    <!-- Details -->
     <div class="tdp-details">
+      <div class="tdp-field">
+        <label class="tdp-label">截止日期</label>
+        <input id="tdp-deadline-input" type="date" class="tdp-input" />
+      </div>
       <div id="tdp-tags" class="tdp-tags"></div>
-      <div id="tdp-notes" class="tdp-notes"></div>
-      <div id="tdp-meta" class="tdp-meta-row"></div>
-      <div id="tdp-notion" class="tdp-notion-row"></div>
+      <div id="tdp-notes" class="tdp-notes-text"></div>
+      <div id="tdp-meta"   class="tdp-meta"></div>
+      <div id="tdp-notion" class="tdp-notion"></div>
     </div>
 
-    <!-- Task-scoped agent chat -->
     <div class="tdp-chat">
-      <div class="tdp-chat-title">💬 和 agent 讨论这个任务</div>
+      <div class="tdp-chat-header">💬 和 Hermes 讨论这个任务</div>
       <div id="tdp-messages" class="tdp-messages"></div>
       <div class="tdp-input-wrap">
         <textarea id="tdp-input" placeholder="针对此任务提问… (Enter 发送)" rows="1"></textarea>
-        <button id="tdp-send-btn">➤</button>
+        <button id="tdp-send-btn" class="tdp-send">↑</button>
       </div>
     </div>
 
-  </div><!-- #task-detail-panel -->
+  </div>
+
+  <!-- ── OCR confirm modal ──────────────────────────────────── -->
+  <div id="ocr-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">📋 识别结果确认</span>
+        <button id="ocr-modal-close" class="btn-ghost btn-sm">✕</button>
+      </div>
+      <div id="ocr-task-list" class="ocr-task-list"></div>
+      <div class="modal-footer">
+        <button id="ocr-cancel-btn" class="btn-ghost">取消</button>
+        <button id="ocr-confirm-btn" class="btn-primary">全部创建</button>
+      </div>
+    </div>
+  </div>
 
 </div><!-- #app -->
 

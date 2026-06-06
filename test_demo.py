@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Offline tool-layer test — no LLM calls required.
 Demonstrates all 6 tools and verifies the cache refresh cycle.
@@ -6,10 +7,15 @@ Run:
     python test_demo.py
 """
 
+import io
 import json
 import os
 import sys
 from pathlib import Path
+
+# Force UTF-8 output on Windows
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Ensure we can import sibling modules
 sys.path.insert(0, str(Path(__file__).parent))

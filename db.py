@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-# Allow Dockerfile / Railway to override DB location via env var
 _env_db = os.environ.get("DB_PATH", "")
 DB_PATH = Path(_env_db) if _env_db else Path(__file__).parent / "tasks.db"
 
@@ -45,10 +44,9 @@ def _today() -> str:
 # ── schema ────────────────────────────────────────────────────────────────────
 
 def init_db() -> None:
-    """Create all tables if missing; migrate legacy tables safely."""
+    """建表（如果不存在）并安全地迁移旧表结构。"""
     with get_conn() as conn:
         conn.executescript("""
-            -- Main task store
             CREATE TABLE IF NOT EXISTS tasks (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 name        TEXT    NOT NULL UNIQUE,
@@ -56,13 +54,13 @@ def init_db() -> None:
                 priority    TEXT    NOT NULL DEFAULT 'medium',
                 notes       TEXT    DEFAULT '',
                 tags        TEXT    DEFAULT '',
+                deadline    TEXT    DEFAULT '',
                 notion_id   TEXT    DEFAULT '',
                 last_synced TEXT    DEFAULT '',
                 created     TEXT    NOT NULL,
                 updated     TEXT    NOT NULL
             );
 
-            -- Precomputed stats cache (single row)
             CREATE TABLE IF NOT EXISTS summary_cache (
                 id         INTEGER PRIMARY KEY CHECK (id = 1),
                 total      INTEGER DEFAULT 0,
@@ -74,7 +72,6 @@ def init_db() -> None:
                 updated_at TEXT    NOT NULL
             );
 
-            -- Per-day behaviour snapshot
             CREATE TABLE IF NOT EXISTS daily_log (
                 date            TEXT PRIMARY KEY,
                 tasks_done      INTEGER DEFAULT 0,
@@ -84,7 +81,6 @@ def init_db() -> None:
                 note            TEXT    DEFAULT ''
             );
 
-            -- Running streaks (single row)
             CREATE TABLE IF NOT EXISTS streak (
                 id              INTEGER PRIMARY KEY CHECK (id = 1),
                 good_streak     INTEGER DEFAULT 0,
@@ -94,32 +90,41 @@ def init_db() -> None:
                 last_week_notes TEXT    DEFAULT '[]'
             );
 
-            -- Global agent state (single row)
             CREATE TABLE IF NOT EXISTS agent_state (
                 id             INTEGER PRIMARY KEY CHECK (id = 1),
                 current_mood   TEXT    DEFAULT 'friend',
                 notion_db_id   TEXT    DEFAULT '',
                 notion_page_id TEXT    DEFAULT ''
             );
+
+            -- 番茄钟会话记录
+            CREATE TABLE IF NOT EXISTS pomodoro_sessions (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id          INTEGER,
+                task_name        TEXT    DEFAULT '',
+                started_at       TEXT    NOT NULL,
+                duration_minutes INTEGER DEFAULT 25,
+                completed        INTEGER DEFAULT 0,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+            );
         """)
 
-        # Migrate: add notion columns to tasks if they don't exist yet
+        # 迁移旧表：按需添加新列
         for col, definition in [
             ("notion_id",   "TEXT DEFAULT ''"),
             ("last_synced", "TEXT DEFAULT ''"),
+            ("deadline",    "TEXT DEFAULT ''"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE tasks ADD COLUMN {col} {definition}")
             except Exception:
-                pass  # column already exists
+                pass
 
-        # Ensure agent_state has its default row
         conn.execute("""
             INSERT OR IGNORE INTO agent_state (id, current_mood, notion_db_id, notion_page_id)
             VALUES (1, 'friend', '', '')
         """)
 
-        # Ensure streak has its default row
         conn.execute("""
             INSERT OR IGNORE INTO streak
                 (id, good_streak, bad_streak, best_streak, last_updated, last_week_notes)
@@ -138,18 +143,16 @@ def get_mood() -> str:
 
 def save_mood(mode: str) -> None:
     if mode not in _VALID_MOODS:
-        raise ValueError(f"Unknown mood '{mode}'. Valid: {sorted(_VALID_MOODS)}")
+        raise ValueError(f"未知人格 '{mode}'，可选：{sorted(_VALID_MOODS)}")
     init_db()
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE agent_state SET current_mood=? WHERE id=1", (mode,)
-        )
+        conn.execute("UPDATE agent_state SET current_mood=? WHERE id=1", (mode,))
 
 
 # ── Notion IDs ────────────────────────────────────────────────────────────────
 
 def get_notion_ids() -> tuple[str, str]:
-    """Returns (notion_db_id, notion_page_id). Empty strings if not yet set."""
+    """返回 (notion_db_id, notion_page_id)，未设置时返回空字符串。"""
     init_db()
     with get_conn() as conn:
         row = conn.execute(

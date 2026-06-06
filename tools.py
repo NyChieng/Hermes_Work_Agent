@@ -1,10 +1,9 @@
 """
-6 tools exposed to the agent.
+Agent 可用的 6 个工具。
 
-Every write operation:
-  1. Calls _refresh_cache() — keeps the in-process summary current.
-  2. Spawns a daemon thread to push the task to Notion asynchronously
-     so the agent reply is never delayed by a Notion API round-trip.
+每次写操作：
+  1. 调用 _refresh_cache() 保持进程内摘要最新。
+  2. 后台线程推送 Notion，不阻塞 agent 回复。
 """
 
 import threading
@@ -16,23 +15,23 @@ _STATUS   = {"todo", "in_progress", "done", "blocked"}
 _PRIORITY = {"high", "medium", "low"}
 
 
-# ── Notion push (fire-and-forget) ─────────────────────────────────────────────
+# ── Notion 异步推送 ───────────────────────────────────────────────────────────
 
 def _push_async(task: dict) -> None:
-    """Push one task to Notion in a background thread."""
+    """在后台线程将单个任务推送到 Notion（fire-and-forget）。"""
     def _worker():
         try:
             from notion_sync import push_task_to_notion
             push_task_to_notion(task)
         except Exception:
-            pass  # Notion sync is best-effort; never crash the agent
+            pass
     threading.Thread(target=_worker, daemon=True).start()
 
 
-# ── DB helpers ────────────────────────────────────────────────────────────────
+# ── DB 工具函数 ────────────────────────────────────────────────────────────────
 
 def _find_task(conn, name: str):
-    """Exact match first, then LIKE fallback. Returns sqlite3.Row or None."""
+    """先精确匹配，再 LIKE 模糊匹配。返回 sqlite3.Row 或 None。"""
     row = conn.execute(
         "SELECT * FROM tasks WHERE name = ? AND status != 'archived'", (name,)
     ).fetchone()
@@ -48,26 +47,24 @@ def _row(conn, name: str) -> dict:
     return dict(conn.execute("SELECT * FROM tasks WHERE name = ?", (name,)).fetchone())
 
 
-# ── public tools ──────────────────────────────────────────────────────────────
+# ── 公开工具 ──────────────────────────────────────────────────────────────────
 
 def get_summary() -> dict:
-    """
-    Return cached progress summary (~80 tokens).
-    """
+    """返回缓存的进度摘要（约 80 tokens）。"""
     return get_cached_summary()
 
 
 def query_task(keyword: str) -> list[dict]:
     """
-    Full-text search across name, tags, and notes.
-    Returns up to 20 non-archived matching tasks.
+    按关键词在任务名称、标签、备注中全文搜索。
+    最多返回 20 条非归档任务，按优先级和更新时间排序。
     """
     init_db()
     pat = f"%{keyword}%"
     with get_conn() as conn:
         rows = conn.execute(
             """
-            SELECT id, name, status, priority, notes, tags, updated
+            SELECT id, name, status, priority, notes, tags, deadline, updated
             FROM tasks
             WHERE status != 'archived'
               AND (name LIKE ? OR tags LIKE ? OR notes LIKE ?)
@@ -86,10 +83,11 @@ def add_task(
     priority: str = "medium",
     notes: str = "",
     tags: str = "",
+    deadline: str = "",
 ) -> dict:
     """
-    Insert a new task.
-    Returns the created task dict, or {"error": ...} if name already exists.
+    新增任务。deadline 格式为 YYYY-MM-DD（可为空）。
+    返回创建的任务字典，名称重复时返回 {"error": ...}。
     """
     init_db()
     if priority not in _PRIORITY:
@@ -99,10 +97,10 @@ def add_task(
         with get_conn() as conn:
             conn.execute(
                 """
-                INSERT INTO tasks (name, status, priority, notes, tags, created, updated)
-                VALUES (?, 'todo', ?, ?, ?, ?, ?)
+                INSERT INTO tasks (name, status, priority, notes, tags, deadline, created, updated)
+                VALUES (?, 'todo', ?, ?, ?, ?, ?, ?)
                 """,
-                (name, priority, notes, tags, now, now),
+                (name, priority, notes, tags, deadline or "", now, now),
             )
             result = _row(conn, name)
     except Exception as exc:
@@ -118,10 +116,11 @@ def update_task(
     status: str | None = None,
     notes: str | None = None,
     priority: str | None = None,
+    deadline: str | None = None,
 ) -> dict:
     """
-    Partial update — pass only the fields you want to change.
-    Fuzzy-matches on name. Auto-creates if not found.
+    局部更新任务，只传需要修改的字段。支持模糊名称匹配。
+    找不到任务时自动创建。
     """
     init_db()
     with get_conn() as conn:
@@ -131,14 +130,15 @@ def update_task(
             now = _now()
             conn.execute(
                 """
-                INSERT INTO tasks (name, status, priority, notes, tags, created, updated)
-                VALUES (?, ?, ?, ?, '', ?, ?)
+                INSERT INTO tasks (name, status, priority, notes, tags, deadline, created, updated)
+                VALUES (?, ?, ?, ?, '', ?, ?, ?)
                 """,
                 (
                     name,
                     status   if status   in _STATUS   else "todo",
                     priority if priority in _PRIORITY else "medium",
                     notes or "",
+                    deadline or "",
                     now, now,
                 ),
             )
@@ -151,10 +151,11 @@ def update_task(
         new_status   = status   if status   in _STATUS   else row["status"]
         new_priority = priority if priority in _PRIORITY else row["priority"]
         new_notes    = notes    if notes    is not None  else row["notes"]
+        new_deadline = deadline if deadline is not None  else (row["deadline"] if "deadline" in row.keys() else "")
 
         conn.execute(
-            "UPDATE tasks SET status=?, priority=?, notes=?, updated=? WHERE name=?",
-            (new_status, new_priority, new_notes, _now(), task_name),
+            "UPDATE tasks SET status=?, priority=?, notes=?, deadline=?, updated=? WHERE name=?",
+            (new_status, new_priority, new_notes, new_deadline, _now(), task_name),
         )
         result = _row(conn, task_name)
 
@@ -169,7 +170,7 @@ def list_tasks(
     limit: int = 10,
 ) -> list[dict]:
     """
-    Return tasks ordered by priority then urgency.
+    按优先级和紧急程度返回任务列表，支持按状态/优先级过滤。
     """
     init_db()
     conditions = ["status != 'archived'"]
@@ -188,7 +189,7 @@ def list_tasks(
     with get_conn() as conn:
         rows = conn.execute(
             f"""
-            SELECT id, name, status, priority, notes, tags, updated
+            SELECT id, name, status, priority, notes, tags, deadline, updated
             FROM tasks
             WHERE {where}
             ORDER BY
@@ -206,14 +207,12 @@ def list_tasks(
 
 
 def delete_task(name: str) -> dict:
-    """
-    Soft-delete: set status to 'archived'. Fuzzy name match.
-    """
+    """软删除：把任务状态改为 'archived'，支持模糊名称匹配。"""
     init_db()
     with get_conn() as conn:
         row = _find_task(conn, name)
         if row is None:
-            return {"error": f"Task '{name}' not found"}
+            return {"error": f"找不到任务 '{name}'"}
         conn.execute(
             "UPDATE tasks SET status='archived', updated=? WHERE name=?",
             (_now(), row["name"]),

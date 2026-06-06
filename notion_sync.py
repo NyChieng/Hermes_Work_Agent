@@ -1,17 +1,16 @@
 """
-Notion bidirectional sync.
+Notion 双向同步。
 
-Direction A (push):  SQLite → Notion — triggered after every write tool call
-                     (runs in a daemon thread so it never blocks the agent).
-Direction B (pull):  Notion → SQLite — polled every 5 minutes by the scheduler.
-                     Conflict rule: whichever side has the later timestamp wins.
+方向 A（推送）：SQLite → Notion，每次写操作后在后台线程执行。
+方向 B（拉取）：Notion → SQLite，每 5 分钟由调度器轮询。
+冲突规则：以最新修改时间戳的一方为准。
 
-All functions degrade gracefully (log warning, return) when NOTION_TOKEN
-or NOTION_PARENT_PAGE_ID is not set, or when the Notion API is unreachable.
+所有 HTTP 调用带指数退避重试（最多3次），避免网络抖动导致同步失败无提示。
 """
 
 import logging
 import os
+import time
 from datetime import datetime
 
 import httpx
@@ -24,7 +23,7 @@ _BASE = "https://api.notion.com/v1"
 _VER  = "2022-06-28"
 
 
-# ── HTTP helpers ──────────────────────────────────────────────────────────────
+# ── HTTP 工具 ─────────────────────────────────────────────────────────────────
 
 def _headers() -> dict:
     token = os.getenv("NOTION_TOKEN", "")
@@ -36,7 +35,6 @@ def _headers() -> dict:
 
 
 def _notion_ok() -> bool:
-    """Return False (with a warning) if credentials are missing."""
     if not os.getenv("NOTION_TOKEN") or not os.getenv("NOTION_PARENT_PAGE_ID"):
         logger.debug("Notion 凭据未配置，跳过同步")
         return False
@@ -44,36 +42,57 @@ def _notion_ok() -> bool:
 
 
 def _get(path: str, **kwargs) -> dict | None:
-    try:
-        r = httpx.get(f"{_BASE}{path}", headers=_headers(), timeout=15, **kwargs)
-        r.raise_for_status()
-        return r.json()
-    except Exception as exc:
-        logger.warning("Notion GET %s 失败: %s", path, exc)
-        return None
+    """GET 请求，最多重试3次（指数退避）。"""
+    for attempt in range(3):
+        try:
+            r = httpx.get(f"{_BASE}{path}", headers=_headers(), timeout=15, **kwargs)
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            if attempt < 2:
+                wait = 2 ** attempt
+                logger.debug("Notion GET 第%d次重试（等待%ds）: %s", attempt + 2, wait, exc)
+                time.sleep(wait)
+            else:
+                logger.warning("Notion GET %s 失败（已重试3次）: %s", path, exc)
+    return None
 
 
 def _post(path: str, payload: dict) -> dict | None:
-    try:
-        r = httpx.post(f"{_BASE}{path}", headers=_headers(), json=payload, timeout=15)
-        r.raise_for_status()
-        return r.json()
-    except Exception as exc:
-        logger.warning("Notion POST %s 失败: %s", path, exc)
-        return None
+    """POST 请求，最多重试3次（指数退避）。"""
+    for attempt in range(3):
+        try:
+            r = httpx.post(f"{_BASE}{path}", headers=_headers(), json=payload, timeout=15)
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            if attempt < 2:
+                wait = 2 ** attempt
+                logger.debug("Notion POST 第%d次重试（等待%ds）: %s", attempt + 2, wait, exc)
+                time.sleep(wait)
+            else:
+                logger.warning("Notion POST %s 失败（已重试3次）: %s", path, exc)
+    return None
 
 
 def _patch(path: str, payload: dict) -> dict | None:
-    try:
-        r = httpx.patch(f"{_BASE}{path}", headers=_headers(), json=payload, timeout=15)
-        r.raise_for_status()
-        return r.json()
-    except Exception as exc:
-        logger.warning("Notion PATCH %s 失败: %s", path, exc)
-        return None
+    """PATCH 请求，最多重试3次（指数退避）。"""
+    for attempt in range(3):
+        try:
+            r = httpx.patch(f"{_BASE}{path}", headers=_headers(), json=payload, timeout=15)
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            if attempt < 2:
+                wait = 2 ** attempt
+                logger.debug("Notion PATCH 第%d次重试（等待%ds）: %s", attempt + 2, wait, exc)
+                time.sleep(wait)
+            else:
+                logger.warning("Notion PATCH %s 失败（已重试3次）: %s", path, exc)
+    return None
 
 
-# ── property builders ─────────────────────────────────────────────────────────
+# ── 属性构建器 ────────────────────────────────────────────────────────────────
 
 def _title_prop(text: str) -> dict:
     return {"title": [{"type": "text", "text": {"content": text}}]}
@@ -93,7 +112,6 @@ def _multi_select_prop(csv: str) -> dict:
 
 
 def _date_prop(iso_str: str) -> dict:
-    # iso_str is "YYYY-MM-DD HH:MM" (SQLite format) → convert to ISO 8601
     try:
         dt = datetime.strptime(iso_str, "%Y-%m-%d %H:%M")
         return {"date": {"start": dt.strftime("%Y-%m-%dT%H:%M:%S")}}
@@ -112,10 +130,9 @@ def _task_properties(task: dict) -> dict:
     }
 
 
-# ── parse Notion → SQLite ─────────────────────────────────────────────────────
+# ── Notion 页面解析 ───────────────────────────────────────────────────────────
 
 def _norm_page_id(raw: str) -> str:
-    """Ensure page ID has hyphens: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"""
     s = raw.replace("-", "")
     if len(s) != 32:
         return raw
@@ -143,26 +160,23 @@ def _parse_title(props: dict) -> str:
 
 
 def _notion_ts_to_local(ts: str) -> str:
-    """Convert Notion UTC ISO timestamp → 'YYYY-MM-DD HH:MM' (naive local approx)."""
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        # Convert to naive local (rough: ignore DST for personal tool)
         local = dt.replace(tzinfo=None)
         return local.strftime("%Y-%m-%d %H:%M")
     except Exception:
         return ""
 
 
-# ── first-time setup ──────────────────────────────────────────────────────────
+# ── 首次初始化 ────────────────────────────────────────────────────────────────
 
 def setup_notion() -> str:
     """
-    Create the 'work-agent' Notion Database under NOTION_PARENT_PAGE_ID.
-    Stores the new db_id + page_id in agent_state.
-    Returns the Notion page URL, or an error string.
+    在 NOTION_PARENT_PAGE_ID 下创建 '工作进度追踪' 数据库。
+    将新 db_id 存入 agent_state，返回页面 URL 或错误信息。
     """
     if not _notion_ok():
-        return "Notion 凭据未配置。请在 .env 中填写 NOTION_TOKEN 和 NOTION_PARENT_PAGE_ID。"
+        return "Notion 凭据未配置。请先填写 NOTION_TOKEN 和 NOTION_PARENT_PAGE_ID。"
 
     parent_raw = os.getenv("NOTION_PARENT_PAGE_ID", "")
     parent_id  = _norm_page_id(parent_raw.strip())
@@ -192,33 +206,32 @@ def setup_notion() -> str:
 
     result = _post("/databases", payload)
     if not result:
-        return "Notion 数据库创建失败，请检查日志。"
+        return "Notion 数据库创建失败，请查看日志。"
 
     db_id   = result.get("id", "")
-    page_id = result.get("id", "")  # for a DB, id == parent page concept
     url     = result.get("url", "https://notion.so")
-    save_notion_ids(db_id, page_id)
+    save_notion_ids(db_id, db_id)
     logger.info("Notion 数据库已创建: %s", url)
     return url
 
 
-# ── push: SQLite → Notion ─────────────────────────────────────────────────────
+# ── 推送：SQLite → Notion ─────────────────────────────────────────────────────
 
 def push_task_to_notion(task: dict) -> str:
     """
-    Create or update the Notion page for a single task.
-    Returns the notion_id (empty string on failure).
+    创建或更新单个任务对应的 Notion 页面。
+    返回 notion_id（失败时返回空字符串）。
     """
     if not _notion_ok():
         return ""
 
     db_id, _ = get_notion_ids()
     if not db_id:
-        logger.debug("Notion DB 未初始化，跳过 push")
+        logger.debug("Notion DB 未初始化，跳过推送")
         return ""
 
-    props      = _task_properties(task)
-    notion_id  = task.get("notion_id") or ""
+    props     = _task_properties(task)
+    notion_id = task.get("notion_id") or ""
 
     if notion_id:
         result = _patch(f"/pages/{notion_id}", {"properties": props})
@@ -233,7 +246,6 @@ def push_task_to_notion(task: dict) -> str:
 
     new_id = result.get("id", "")
     if new_id and new_id != notion_id:
-        # Store the newly assigned notion_id back in SQLite
         try:
             with get_conn() as conn:
                 conn.execute(
@@ -247,10 +259,7 @@ def push_task_to_notion(task: dict) -> str:
 
 
 def push_all_to_notion() -> int:
-    """
-    Bulk-push all non-archived tasks to Notion (first-time sync).
-    Returns count of successfully pushed tasks.
-    """
+    """批量推送所有非归档任务到 Notion（首次同步用）。返回成功推送数。"""
     if not _notion_ok():
         return 0
 
@@ -266,16 +275,16 @@ def push_all_to_notion() -> int:
         nid  = push_task_to_notion(task)
         if nid:
             pushed += 1
-    logger.info("批量推送完成: %d/%d 个任务", pushed, len(rows))
+    logger.info("批量推送完成: %d/%d", pushed, len(rows))
     return pushed
 
 
-# ── pull: Notion → SQLite ─────────────────────────────────────────────────────
+# ── 拉取：Notion → SQLite ─────────────────────────────────────────────────────
 
 def pull_from_notion() -> int:
     """
-    Query all pages in the Notion database; apply Notion-wins conflict resolution.
-    Returns count of SQLite records updated or created.
+    拉取 Notion 数据库中的所有页面，按时间戳冲突规则更新 SQLite。
+    返回更新/新增的记录数。
     """
     if not _notion_ok():
         return 0
@@ -284,7 +293,6 @@ def pull_from_notion() -> int:
     if not db_id:
         return 0
 
-    # Paginate through all Notion pages
     pages: list[dict] = []
     cursor = None
     while True:
@@ -319,7 +327,7 @@ def pull_from_notion() -> int:
 
 
 def _apply_notion_page(page: dict) -> int:
-    """Apply one Notion page to SQLite. Returns 1 if a change was made, 0 otherwise."""
+    """将一个 Notion 页面应用到 SQLite，有变化返回1，否则返回0。"""
     props     = page.get("properties", {})
     notion_id = page.get("id", "")
     name      = _parse_title(props).strip()
@@ -335,7 +343,6 @@ def _apply_notion_page(page: dict) -> int:
     tags     = _parse_multi_select(props, "Tags")
 
     with get_conn() as conn:
-        # Look up by notion_id first, then by name
         row = conn.execute(
             "SELECT * FROM tasks WHERE notion_id=?", (notion_id,)
         ).fetchone()
@@ -345,7 +352,6 @@ def _apply_notion_page(page: dict) -> int:
             ).fetchone()
 
         if row is None:
-            # New task from Notion — insert into SQLite
             now = _now()
             conn.execute(
                 """
@@ -357,7 +363,6 @@ def _apply_notion_page(page: dict) -> int:
             )
             return 1
 
-        # Existing task — Notion wins if its edit time is later
         sqlite_updated = row["updated"] or ""
         if notion_edited and notion_edited > sqlite_updated:
             conn.execute(
