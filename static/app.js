@@ -688,3 +688,34 @@ document.getElementById('chat-panel').addEventListener('drop', e => {
   const file = e.dataTransfer.files[0];
   if (file) uploadFile(file);
 });
+
+// ── Export ─────────────────────────────────────────────────────────────────
+
+function exportTasks(format) {
+  // Use query param for auth since browser download links can't set custom headers
+  const url  = `/api/export/${format}?_t=${encodeURIComponent(state.token)}`;
+  const link = document.createElement('a');
+  link.href  = url;
+  link.setAttribute('download', format === 'csv' ? 'tasks.csv' : 'tasks.md');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Wire export dropdown toggle
+document.getElementById('export-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('export-dropdown').classList.toggle('hidden');
+});
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+  document.getElementById('export-dropdown').classList.add('hidden');
+  exportTasks('csv');
+});
+document.getElementById('export-md-btn').addEventListener('click', () => {
+  document.getElementById('export-dropdown').classList.add('hidden');
+  exportTasks('md');
+});
+// Close dropdown when clicking anywhere else
+document.addEventListener('click', () => {
+  document.getElementById('export-dropdown').classList.add('hidden');
+});

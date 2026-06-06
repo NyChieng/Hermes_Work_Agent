@@ -46,7 +46,10 @@ def login(req: LoginRequest):
 
 
 def _verify(request: Request) -> None:
-    token = request.headers.get("X-Auth-Token", "")
+    token = (
+        request.headers.get("X-Auth-Token", "")
+        or request.query_params.get("_t", "")
+    )
     if token != UI_PASSWORD:
         raise HTTPException(status_code=401, detail="未授权")
 
