@@ -608,3 +608,83 @@ document.getElementById('tdp-input').addEventListener('input', () => {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 80) + 'px';
 });
+
+// ── File upload ────────────────────────────────────────────────────────────
+
+const _TEXT_EXTS = new Set([
+  'txt', 'md', 'json', 'csv', 'py', 'js', 'ts', 'jsx', 'tsx',
+  'html', 'css', 'xml', 'yaml', 'yml', 'toml', 'ini', 'sh', 'bat',
+]);
+
+async function uploadFile(file) {
+  const ext      = (file.name.split('.').pop() || '').toLowerCase();
+  let   content  = '';
+  let   filename = file.name;
+
+  if (ext === 'pdf') {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const r = await fetch('/api/upload', {
+        method:  'POST',
+        headers: { 'X-Auth-Token': state.token },
+        body:    formData,
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        throw new Error(err.detail || r.statusText);
+      }
+      const data = await r.json();
+      content  = data.content;
+      filename = data.filename;
+      if (data.truncated) toast('文件内容已截断至 8000 字符', 'info');
+    } catch (e) {
+      toast('文件读取失败: ' + e.message, 'error');
+      return;
+    }
+  } else if (_TEXT_EXTS.has(ext) || file.type.startsWith('text/')) {
+    content = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('读取失败'));
+      reader.readAsText(file, 'utf-8');
+    });
+  } else {
+    toast('不支持此格式，请上传文本文件或 PDF', 'error');
+    return;
+  }
+
+  // Show collapsible file preview in chat
+  const preview    = esc(content.slice(0, 300)) + (content.length > 300 ? '…' : '');
+  const userBubble = appendMessage('user', `📎 ${filename}`);
+  userBubble.insertAdjacentHTML('afterend', `
+    <details class="file-block">
+      <summary>📄 ${esc(filename)} (${content.length} 字符)</summary>
+      <pre>${preview}</pre>
+    </details>
+  `);
+
+  // Send content to agent (truncated to 8000 chars)
+  await sendMessage(`[文件: ${filename}]\n${content.slice(0, 8000)}`);
+}
+
+// Wire up 📎 button
+document.getElementById('file-btn').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) uploadFile(file);
+  e.target.value = '';  // reset so same file can be re-uploaded
+});
+
+// Drag-and-drop onto chat panel
+document.getElementById('chat-panel').addEventListener('dragover', e => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+document.getElementById('chat-panel').addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
