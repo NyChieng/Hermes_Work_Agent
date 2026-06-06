@@ -100,9 +100,18 @@
     <!-- Notion sync footer -->
     <footer class="board-footer">
       <span id="notion-status" class="notion-status">Notion 未配置</span>
-      <button id="sync-btn" class="btn-ghost btn-sm" title="手动同步 Notion">
-        <span id="sync-icon">🔄</span> 同步
-      </button>
+      <div class="footer-actions">
+        <div class="export-wrap">
+          <button id="export-btn" class="btn-ghost btn-sm">📥 导出</button>
+          <div id="export-dropdown" class="export-dropdown hidden">
+            <button id="export-csv-btn">📊 下载 CSV</button>
+            <button id="export-md-btn">📝 下载 Markdown</button>
+          </div>
+        </div>
+        <button id="sync-btn" class="btn-ghost btn-sm" title="手动同步 Notion">
+          <span id="sync-icon">🔄</span> 同步
+        </button>
+      </div>
     </footer>
   </aside>
 
@@ -127,6 +136,9 @@
     </div>
 
     <div class="input-wrap">
+      <input type="file" id="file-input" hidden
+             accept=".txt,.md,.json,.csv,.py,.js,.ts,.xml,.yaml,.yml,.pdf" />
+      <button id="file-btn" class="file-btn" title="上传文件">📎</button>
       <textarea id="chat-input" placeholder="输入消息… (Enter 发送，Shift+Enter 换行)" rows="1"></textarea>
       <button id="send-btn">
         <span id="send-icon">➤</span>
@@ -134,34 +146,51 @@
     </div>
   </main>
 
-  <!-- Task edit sidebar (slides in from right) -->
-  <div id="edit-sidebar" class="edit-sidebar hidden">
-    <div class="edit-header">
-      <span>编辑任务</span>
-      <button id="edit-close" class="btn-ghost">✕</button>
+  <!-- Task detail panel (slides in from right on task click) -->
+  <div id="task-detail-panel" class="task-detail-panel hidden">
+
+    <!-- Header -->
+    <div class="tdp-header">
+      <span id="tdp-name" class="tdp-name" contenteditable="true" spellcheck="false"></span>
+      <div class="tdp-header-btns">
+        <button id="tdp-archive-btn" class="btn-danger btn-sm">归档</button>
+        <button id="tdp-close-btn" class="btn-ghost btn-sm">✕</button>
+      </div>
     </div>
-    <label>任务名称</label>
-    <input id="edit-name" type="text" />
-    <label>状态</label>
-    <select id="edit-status">
-      <option value="todo">⬜ 未开始</option>
-      <option value="in_progress">🟡 进行中</option>
-      <option value="done">✅ 已完成</option>
-      <option value="blocked">🔴 阻塞</option>
-    </select>
-    <label>优先级</label>
-    <select id="edit-priority">
-      <option value="high">🔴 高</option>
-      <option value="medium">🟡 中</option>
-      <option value="low">🔵 低</option>
-    </select>
-    <label>备注</label>
-    <textarea id="edit-notes" rows="3"></textarea>
-    <div class="edit-actions">
-      <button id="edit-save-btn" class="btn-primary">保存</button>
-      <button id="edit-delete-btn" class="btn-danger">归档</button>
+
+    <!-- Badges (clickable to cycle) -->
+    <div class="tdp-badges">
+      <span id="tdp-status-badge" class="status-badge" title="点击切换状态"></span>
+      <span id="tdp-priority-badge" class="priority-badge" title="点击切换优先级"></span>
     </div>
-  </div>
+
+    <!-- Quick-action status buttons -->
+    <div class="quick-actions">
+      <button class="qa-btn" data-status="todo">⬜ Todo</button>
+      <button class="qa-btn" data-status="in_progress">🟡 进行中</button>
+      <button class="qa-btn" data-status="done">✅ 完成</button>
+      <button class="qa-btn" data-status="blocked">🔴 阻塞</button>
+    </div>
+
+    <!-- Details -->
+    <div class="tdp-details">
+      <div id="tdp-tags" class="tdp-tags"></div>
+      <div id="tdp-notes" class="tdp-notes"></div>
+      <div id="tdp-meta" class="tdp-meta-row"></div>
+      <div id="tdp-notion" class="tdp-notion-row"></div>
+    </div>
+
+    <!-- Task-scoped agent chat -->
+    <div class="tdp-chat">
+      <div class="tdp-chat-title">💬 和 agent 讨论这个任务</div>
+      <div id="tdp-messages" class="tdp-messages"></div>
+      <div class="tdp-input-wrap">
+        <textarea id="tdp-input" placeholder="针对此任务提问… (Enter 发送)" rows="1"></textarea>
+        <button id="tdp-send-btn">➤</button>
+      </div>
+    </div>
+
+  </div><!-- #task-detail-panel -->
 
 </div><!-- #app -->
 
