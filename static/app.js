@@ -2,12 +2,15 @@
 
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
-  token:       sessionStorage.getItem('wa_token') || '',
-  history:     [],   // [{role, content}] — max 12 entries
-  currentMood: 'friend',
-  tasks:       [],
-  editing:     null, // task name being edited
-  sending:     false,
+  token:         sessionStorage.getItem('wa_token') || '',
+  history:       [],   // [{role, content}] — max 12 entries
+  currentMood:   'friend',
+  tasks:         [],
+  editing:       null,   // kept for backward compat (no longer used)
+  sending:       false,
+  activeTask:    null,   // task object currently shown in detail panel
+  taskHistories: {},     // { [taskName]: [{role, content}] }
+  taskSending:   false,
 };
 
 // ── API helpers ────────────────────────────────────────────────────────────
@@ -151,7 +154,7 @@ function renderBoard(tasks) {
           <span class="priority-dot ${t.priority}"></span>
           <span class="task-notes">${esc(t.notes || '')}</span>
         </div>`;
-      card.addEventListener('click', () => openEdit(t));
+      card.addEventListener('click', () => openTaskDetail(t));
       body.appendChild(card);
     });
   }
@@ -186,41 +189,116 @@ document.getElementById('add-submit-btn').addEventListener('click', async () => 
   } catch (e) { toast('添加失败: ' + e.message, 'error'); }
 });
 
-// ── Edit sidebar ───────────────────────────────────────────────────────────
-function openEdit(task) {
-  state.editing = task.name;
-  document.getElementById('edit-name').value    = task.name;
-  document.getElementById('edit-status').value  = task.status;
-  document.getElementById('edit-priority').value= task.priority;
-  document.getElementById('edit-notes').value   = task.notes || '';
-  document.getElementById('edit-sidebar').classList.remove('hidden');
+// ── Task Detail Panel ──────────────────────────────────────────────────────
+
+const _STATUS_LABELS   = { todo: '⬜ Todo', in_progress: '🟡 进行中', done: '✅ 完成', blocked: '🔴 阻塞' };
+const _PRIORITY_LABELS = { high: '🔴 高优', medium: '🟡 中优', low: '🔵 低优' };
+const _STATUS_CYCLE    = ['todo', 'in_progress', 'done', 'blocked'];
+const _PRIORITY_CYCLE  = ['low', 'medium', 'high'];
+
+function openTaskDetail(task) {
+  state.activeTask = task;
+
+  document.getElementById('tdp-name').textContent = task.name;
+
+  const sb = document.getElementById('tdp-status-badge');
+  sb.dataset.status = task.status;
+  sb.textContent = _STATUS_LABELS[task.status] || task.status;
+
+  const pb = document.getElementById('tdp-priority-badge');
+  pb.dataset.priority = task.priority;
+  pb.textContent = _PRIORITY_LABELS[task.priority] || task.priority;
+
+  document.querySelectorAll('.qa-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.status === task.status);
+  });
+
+  const tagsEl = document.getElementById('tdp-tags');
+  tagsEl.innerHTML = '';
+  (task.tags || '').split(',').map(t => t.trim()).filter(Boolean).forEach(tag => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.textContent = tag;
+    tagsEl.appendChild(pill);
+  });
+
+  document.getElementById('tdp-notes').textContent = task.notes || '（无备注）';
+  document.getElementById('tdp-meta').textContent  = task.updated ? `🕐 更新：${task.updated}` : '';
+
+  const notionEl = document.getElementById('tdp-notion');
+  if (task.notion_id) {
+    const url = `https://www.notion.so/${task.notion_id.replace(/-/g, '')}`;
+    notionEl.innerHTML = `🔗 Notion <a href="${url}" target="_blank">已同步</a>`;
+  } else {
+    notionEl.textContent = 'Notion：未同步';
+  }
+
+  const msgEl = document.getElementById('tdp-messages');
+  msgEl.innerHTML = '';
+  const hist = state.taskHistories[task.name] || [];
+  hist.forEach(m => appendTaskMessage(m.role === 'user' ? 'user' : 'agent', m.content));
+
+  document.getElementById('task-detail-panel').classList.remove('hidden');
+  document.getElementById('app').classList.add('app-3col');
+  document.getElementById('tdp-input').focus();
 }
-document.getElementById('edit-close').addEventListener('click', () => {
-  document.getElementById('edit-sidebar').classList.add('hidden');
+
+function closeTaskDetail() {
+  document.getElementById('task-detail-panel').classList.add('hidden');
+  document.getElementById('app').classList.remove('app-3col');
+  state.activeTask = null;
+}
+
+document.getElementById('tdp-name').addEventListener('blur', async () => {
+  if (!state.activeTask) return;
+  const newName = document.getElementById('tdp-name').textContent.trim();
+  if (!newName || newName === state.activeTask.name) return;
+  try { await loadBoard(); } catch (e) { /* ignore */ }
 });
-document.getElementById('edit-save-btn').addEventListener('click', async () => {
-  if (!state.editing) return;
-  const status   = document.getElementById('edit-status').value;
-  const priority = document.getElementById('edit-priority').value;
-  const notes    = document.getElementById('edit-notes').value;
+
+document.getElementById('tdp-close-btn').addEventListener('click', closeTaskDetail);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTaskDetail(); });
+
+document.getElementById('tdp-archive-btn').addEventListener('click', async () => {
+  if (!state.activeTask) return;
+  if (!confirm(`归档任务「${state.activeTask.name}」？`)) return;
   try {
-    await api.patch(`/api/tasks/${encodeURIComponent(state.editing)}`,
-                    { status, priority, notes });
-    document.getElementById('edit-sidebar').classList.add('hidden');
-    await Promise.all([loadBoard(), loadSummary()]);
-    toast('已保存');
-  } catch (e) { toast('保存失败: ' + e.message, 'error'); }
-});
-document.getElementById('edit-delete-btn').addEventListener('click', async () => {
-  if (!state.editing) return;
-  if (!confirm(`归档任务「${state.editing}」？`)) return;
-  try {
-    await api.delete(`/api/tasks/${encodeURIComponent(state.editing)}`);
-    document.getElementById('edit-sidebar').classList.add('hidden');
+    await api.delete(`/api/tasks/${encodeURIComponent(state.activeTask.name)}`);
+    closeTaskDetail();
     await Promise.all([loadBoard(), loadSummary()]);
     toast('已归档');
   } catch (e) { toast('归档失败: ' + e.message, 'error'); }
 });
+
+document.getElementById('tdp-status-badge').addEventListener('click', async () => {
+  if (!state.activeTask) return;
+  const idx  = _STATUS_CYCLE.indexOf(state.activeTask.status);
+  const next = _STATUS_CYCLE[(idx + 1) % _STATUS_CYCLE.length];
+  await _updateActiveTask({ status: next });
+});
+
+document.getElementById('tdp-priority-badge').addEventListener('click', async () => {
+  if (!state.activeTask) return;
+  const idx  = _PRIORITY_CYCLE.indexOf(state.activeTask.priority);
+  const next = _PRIORITY_CYCLE[(idx + 1) % _PRIORITY_CYCLE.length];
+  await _updateActiveTask({ priority: next });
+});
+
+document.querySelectorAll('.qa-btn').forEach(btn => {
+  btn.addEventListener('click', () => _updateActiveTask({ status: btn.dataset.status }));
+});
+
+async function _updateActiveTask(patch) {
+  if (!state.activeTask) return;
+  try {
+    const updated = await api.patch(
+      `/api/tasks/${encodeURIComponent(state.activeTask.name)}`, patch
+    );
+    state.activeTask = { ...state.activeTask, ...updated };
+    openTaskDetail(state.activeTask);
+    await Promise.all([loadBoard(), loadSummary()]);
+  } catch (e) { toast('更新失败: ' + e.message, 'error'); }
+}
 
 // ── Mood switcher ──────────────────────────────────────────────────────────
 async function loadMood() {
