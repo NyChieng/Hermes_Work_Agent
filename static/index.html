@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hermes — Work Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -17,7 +17,6 @@
       <span class="login-logo">⚡</span>
       <span class="login-brand-name">Hermes</span>
     </div>
-    <h1 class="login-title">Work Agent</h1>
     <p class="login-sub">输入访问密码继续</p>
     <input id="pwd-input" type="password" placeholder="Password" autocomplete="current-password" />
     <button id="login-btn">进入工作台</button>
@@ -31,13 +30,16 @@
   <!-- ── Sidebar ───────────────────────────────────────────── -->
   <aside id="sidebar">
 
-    <!-- Brand -->
-    <div class="sidebar-brand">
-      <span class="brand-icon">⚡</span>
-      <span class="brand-name">Hermes</span>
+    <!-- Brand + collapse -->
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <span class="brand-icon">⚡</span>
+        <span class="brand-name">Hermes</span>
+      </div>
+      <button id="sidebar-collapse-btn" class="icon-btn" title="折叠侧边栏 (B)">‹</button>
     </div>
 
-    <!-- Stats summary -->
+    <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-item">
         <span class="stat-val" id="stat-total">0</span>
@@ -45,7 +47,7 @@
       </div>
       <div class="stat-item done">
         <span class="stat-val" id="stat-done">0</span>
-        <span class="stat-lbl">已完成</span>
+        <span class="stat-lbl">完成</span>
       </div>
       <div class="stat-item wip">
         <span class="stat-val" id="stat-wip">0</span>
@@ -57,42 +59,47 @@
       </div>
     </div>
 
-    <!-- Progress bar -->
+    <!-- Progress -->
     <div class="progress-wrap">
       <div class="progress-label">
         <span>完成进度</span>
-        <span id="progress-pct">0%</span>
+        <span id="progress-pct" class="progress-pct-val">0%</span>
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
       </div>
     </div>
 
-    <!-- Persona switcher -->
-    <div class="persona-section">
+    <!-- Persona -->
+    <div class="section-block">
       <div class="section-label">鞭策模式</div>
       <div class="persona-row">
-        <button class="persona-btn active" data-mood="friend">😏 损友</button>
-        <button class="persona-btn" data-mood="drill">🪖 军训</button>
-        <button class="persona-btn" data-mood="boss">😔 怨念</button>
+        <button class="persona-btn active" data-mood="friend" title="嘴毒但真心关心">😏 损友</button>
+        <button class="persona-btn" data-mood="drill" title="没废话只要结果">🪖 军训</button>
+        <button class="persona-btn" data-mood="boss" title="克制的失望">😔 怨念</button>
       </div>
     </div>
 
-    <!-- New task button -->
-    <button id="new-task-btn" class="btn-new-task">
-      <span>＋</span> 新建任务
-    </button>
+    <!-- Search + New task -->
+    <div class="task-toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input id="search-input" type="text" placeholder="搜索任务… (/)" spellcheck="false" />
+        <button id="search-clear" class="search-clear hidden">✕</button>
+      </div>
+      <button id="new-task-btn" class="btn-new-task" title="新建任务 (N)">＋</button>
+    </div>
 
-    <!-- Add task form -->
+    <!-- Add form -->
     <div id="add-form" class="add-form hidden">
       <input id="new-name" placeholder="任务名称" />
-      <div class="add-form-row">
+      <div class="add-row">
         <select id="new-priority">
-          <option value="high">🔴 高优先</option>
-          <option value="medium" selected>🟡 中优先</option>
-          <option value="low">🔵 低优先</option>
+          <option value="high">🔴 高</option>
+          <option value="medium" selected>🟡 中</option>
+          <option value="low">🔵 低</option>
         </select>
-        <input id="new-deadline" type="date" title="截止日期（可选）" />
+        <input id="new-deadline" type="date" title="截止日期" />
       </div>
       <input id="new-notes" placeholder="备注（可选）" />
       <div class="add-form-actions">
@@ -101,46 +108,63 @@
       </div>
     </div>
 
-    <!-- Kanban columns -->
+    <!-- Kanban -->
     <div class="kanban" id="kanban">
+
       <div class="col" id="col-todo">
-        <div class="col-header">
+        <div class="col-header" data-col="todo">
           <span class="col-dot todo-dot"></span>
           <span class="col-name">未开始</span>
           <span class="col-count" id="cnt-todo">0</span>
+          <span class="col-toggle">▾</span>
         </div>
-        <div class="col-body" id="list-todo"></div>
+        <div class="col-body" id="list-todo">
+          <div class="col-add-hint" data-col="todo">＋ 点此快速添加</div>
+        </div>
       </div>
+
       <div class="col" id="col-in_progress">
-        <div class="col-header">
+        <div class="col-header" data-col="in_progress">
           <span class="col-dot wip-dot"></span>
           <span class="col-name">进行中</span>
           <span class="col-count" id="cnt-in_progress">0</span>
+          <span class="col-toggle">▾</span>
         </div>
-        <div class="col-body" id="list-in_progress"></div>
+        <div class="col-body" id="list-in_progress">
+          <div class="col-add-hint" data-col="in_progress">＋ 点此快速添加</div>
+        </div>
       </div>
+
       <div class="col" id="col-done">
-        <div class="col-header">
+        <div class="col-header" data-col="done">
           <span class="col-dot done-dot"></span>
           <span class="col-name">已完成</span>
           <span class="col-count" id="cnt-done">0</span>
+          <span class="col-toggle">▾</span>
         </div>
-        <div class="col-body" id="list-done"></div>
+        <div class="col-body" id="list-done">
+          <div class="col-add-hint" data-col="done">＋ 点此快速添加</div>
+        </div>
       </div>
+
       <div class="col" id="col-blocked">
-        <div class="col-header">
+        <div class="col-header" data-col="blocked">
           <span class="col-dot blocked-dot"></span>
           <span class="col-name">阻塞</span>
           <span class="col-count" id="cnt-blocked">0</span>
+          <span class="col-toggle">▾</span>
         </div>
-        <div class="col-body" id="list-blocked"></div>
+        <div class="col-body" id="list-blocked">
+          <div class="col-add-hint" data-col="blocked">＋ 点此快速添加</div>
+        </div>
       </div>
-    </div>
+
+    </div><!-- .kanban -->
 
     <!-- Footer -->
     <footer class="sidebar-footer">
-      <div class="footer-left">
-        <span id="notion-status" class="notion-dot">●</span>
+      <div class="footer-notion">
+        <span id="notion-dot" class="notion-dot">●</span>
         <span id="notion-label" class="notion-label">Notion</span>
       </div>
       <div class="footer-actions">
@@ -158,68 +182,80 @@
     </footer>
   </aside>
 
+  <!-- Sidebar resize handle -->
+  <div id="rz-sidebar" class="resize-handle" title="拖动调整宽度"></div>
+
   <!-- ── Chat panel ─────────────────────────────────────────── -->
   <main id="chat-panel">
 
-    <!-- Header -->
     <header class="chat-header">
       <div class="agent-info">
-        <span id="agent-avatar" class="agent-avatar">⚡</span>
-        <div class="agent-meta">
+        <div id="agent-avatar" class="agent-avatar">⚡</div>
+        <div>
           <div class="agent-name">Hermes</div>
           <div id="mood-label" class="agent-status">😏 损友模式</div>
         </div>
       </div>
-      <div class="chat-header-actions">
-        <button id="weekly-btn" class="chip-btn" title="生成周报">📋 周报</button>
+      <div class="chat-actions">
+        <button id="weekly-btn" class="chip-btn" title="生成本周报告">📋 周报</button>
+        <button id="shortcuts-btn" class="icon-btn" title="快捷键帮助">?</button>
       </div>
     </header>
 
-    <!-- Messages area -->
     <div id="messages" class="messages">
-      <!-- Welcome message -->
       <div class="msg agent welcome-msg">
-        <span class="msg-avatar">⚡</span>
+        <span class="msg-av">⚡</span>
         <div class="msg-bubble">
           嘿，工作台准备好了。<br>
-          直接说任务，或者发一张图片让我帮你识别待办事项。
+          <span class="msg-hint">直接说任务，或拖拽图片来识别待办事项。</span>
         </div>
       </div>
     </div>
 
-    <!-- Quick commands -->
     <div class="quick-bar">
       <button class="chip" data-msg="今日工作计划">☀️ 今日计划</button>
       <button class="chip" data-msg="查看当前进度摘要">📊 进度</button>
       <button class="chip" data-msg="列出所有高优先级任务">🔴 高优先</button>
-      <button class="chip" data-msg="有哪些任务快到期了">⏰ 即将到期</button>
+      <button class="chip" data-msg="有哪些任务快要截止了">⏰ 快到期</button>
     </div>
 
-    <!-- Input area -->
-    <div class="input-area">
+    <div class="input-area" id="input-area">
       <input type="file" id="file-input" hidden
              accept=".txt,.md,.json,.csv,.py,.js,.ts,.xml,.yaml,.yml,.pdf" />
       <input type="file" id="img-input" hidden
              accept="image/jpeg,image/png,image/webp,image/gif" />
-      <button id="file-btn" class="input-action-btn" title="上传文档">📎</button>
-      <button id="ocr-btn"  class="input-action-btn" title="图片识别任务">📸</button>
-      <textarea id="chat-input"
-                placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
-                rows="1"></textarea>
-      <button id="send-btn" class="send-btn">
+      <button id="file-btn"  class="input-btn" title="上传文档 (Ctrl+U)">📎</button>
+      <button id="ocr-btn"   class="input-btn" title="图片识别任务">📸</button>
+      <div class="textarea-wrap">
+        <textarea id="chat-input"
+                  placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
+                  rows="1"></textarea>
+      </div>
+      <button id="send-btn" class="send-btn" title="发送 (Enter)">
         <span id="send-icon">↑</span>
       </button>
     </div>
+
+    <!-- Drop overlay -->
+    <div id="drop-overlay" class="drop-overlay hidden">
+      <div class="drop-hint">
+        <span>📸</span>
+        <p>松开以识别图片中的任务</p>
+      </div>
+    </div>
   </main>
+
+  <!-- Task detail resize handle (only visible when detail panel is open) -->
+  <div id="rz-detail" class="resize-handle hidden" title="拖动调整宽度"></div>
 
   <!-- ── Task detail panel ──────────────────────────────────── -->
   <div id="task-detail-panel" class="task-detail-panel hidden">
 
     <div class="tdp-header">
       <span id="tdp-name" class="tdp-name" contenteditable="true" spellcheck="false"></span>
-      <div class="tdp-header-btns">
-        <button id="tdp-archive-btn" class="btn-danger btn-sm">归档</button>
-        <button id="tdp-close-btn" class="btn-ghost btn-sm">✕</button>
+      <div class="tdp-btns">
+        <button id="tdp-archive-btn" class="btn-danger btn-sm" title="归档此任务">归档</button>
+        <button id="tdp-close-btn"   class="icon-btn"         title="关闭 (Esc)">✕</button>
       </div>
     </div>
 
@@ -236,39 +272,67 @@
       <button class="qa-btn" data-status="blocked">🔴 阻塞</button>
     </div>
 
-    <div class="tdp-details">
-      <div class="tdp-field">
-        <label class="tdp-label">截止日期</label>
-        <input id="tdp-deadline-input" type="date" class="tdp-input" />
+    <div class="tdp-fields">
+      <div class="tdp-field-row">
+        <label class="field-label">截止日期</label>
+        <input id="tdp-deadline-input" type="date" class="field-input" />
       </div>
-      <div id="tdp-tags" class="tdp-tags"></div>
-      <div id="tdp-notes" class="tdp-notes-text"></div>
+      <div class="tdp-field-row">
+        <label class="field-label">标签</label>
+        <div id="tdp-tags" class="tdp-tags"></div>
+      </div>
+      <div class="tdp-field-row col">
+        <label class="field-label">备注</label>
+        <div id="tdp-notes" class="tdp-notes"></div>
+      </div>
       <div id="tdp-meta"   class="tdp-meta"></div>
       <div id="tdp-notion" class="tdp-notion"></div>
     </div>
 
     <div class="tdp-chat">
-      <div class="tdp-chat-header">💬 和 Hermes 讨论这个任务</div>
+      <div class="tdp-chat-hd">💬 和 Hermes 讨论此任务</div>
       <div id="tdp-messages" class="tdp-messages"></div>
-      <div class="tdp-input-wrap">
-        <textarea id="tdp-input" placeholder="针对此任务提问… (Enter 发送)" rows="1"></textarea>
-        <button id="tdp-send-btn" class="tdp-send">↑</button>
+      <div class="tdp-input-row">
+        <textarea id="tdp-input" placeholder="针对此任务提问…" rows="1"></textarea>
+        <button id="tdp-send-btn" class="send-btn send-btn-sm">↑</button>
       </div>
     </div>
 
   </div>
 
+  <!-- ── Shortcuts modal ────────────────────────────────────── -->
+  <div id="shortcuts-modal" class="modal-overlay hidden">
+    <div class="modal-card shortcuts-card">
+      <div class="modal-hd">
+        <span class="modal-title">⌨️ 快捷键</span>
+        <button id="shortcuts-close" class="icon-btn">✕</button>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-row"><kbd>N</kbd><span>新建任务</span></div>
+        <div class="shortcut-row"><kbd>/</kbd><span>聚焦搜索</span></div>
+        <div class="shortcut-row"><kbd>B</kbd><span>折叠/展开侧边栏</span></div>
+        <div class="shortcut-row"><kbd>Esc</kbd><span>关闭面板 / 清空搜索</span></div>
+        <div class="shortcut-row"><kbd>Enter</kbd><span>发送消息</span></div>
+        <div class="shortcut-row"><kbd>Shift+Enter</kbd><span>消息换行</span></div>
+        <div class="shortcut-row"><kbd>?</kbd><span>显示此帮助</span></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── OCR confirm modal ──────────────────────────────────── -->
   <div id="ocr-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-      <div class="modal-header">
+    <div class="modal-card ocr-card">
+      <div class="modal-hd">
         <span class="modal-title">📋 识别结果确认</span>
-        <button id="ocr-modal-close" class="btn-ghost btn-sm">✕</button>
+        <button id="ocr-modal-close" class="icon-btn">✕</button>
       </div>
+      <p class="modal-desc">识别到以下任务，可逐条编辑后批量创建：</p>
       <div id="ocr-task-list" class="ocr-task-list"></div>
-      <div class="modal-footer">
-        <button id="ocr-cancel-btn" class="btn-ghost">取消</button>
-        <button id="ocr-confirm-btn" class="btn-primary">全部创建</button>
+      <div class="modal-ft">
+        <button id="ocr-select-all" class="btn-ghost btn-sm">全选</button>
+        <div style="flex:1"></div>
+        <button id="ocr-cancel-btn"  class="btn-ghost">取消</button>
+        <button id="ocr-confirm-btn" class="btn-primary">创建选中</button>
       </div>
     </div>
   </div>
