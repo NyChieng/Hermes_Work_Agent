@@ -247,7 +247,7 @@ async def api_upload(request: Request, file: UploadFile = File(...)):
                 400, "不支持此格式，请上传文本文件或 PDF"
             )
 
-    return {"filename": filename, "content": content[:8000]}
+    return {"filename": filename, "content": content[:8000], "truncated": len(content) > 8000}
 
 
 # ── export ────────────────────────────────────────────────────────────────────
@@ -292,8 +292,9 @@ def api_export_md(request: Request):
         lines.append(f"## {heading}\n")
         for t in tasks:
             box = "[x]" if checked else "[ ]"
+            safe_name = t['name'].replace('*', r'\*').replace('[', r'\[').replace(']', r'\]')
             note = f" — {t['notes']}" if t.get("notes") else ""
-            lines.append(f"- {box} **{t['name']}**{note}")
+            lines.append(f"- {box} **{safe_name}**{note}")
         lines.append("")
 
     return Response(
@@ -319,7 +320,7 @@ async def api_chat_task(request: Request, task_name: str, body: TaskChatRequest)
     results = query_task(task_name)
     task = next((t for t in results if t["name"] == task_name), None)
     if not task:
-        task = results[0] if results else {"name": task_name}
+        task = results[0] if results else {"name": task_name, "status": "", "priority": "", "notes": "", "tags": ""}
 
     context_prefix = (
         f"[任务上下文] 当前任务：{task.get('name','')} | "
