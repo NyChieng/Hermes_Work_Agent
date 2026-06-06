@@ -1,9 +1,9 @@
 """
-Agent 可用的 6 个工具。
+Agent tools — task CRUD + web search + Gmail.
 
-每次写操作：
-  1. 调用 _refresh_cache() 保持进程内摘要最新。
-  2. 后台线程推送 Notion，不阻塞 agent 回复。
+Every task write:
+  1. Calls _refresh_cache() to keep the in-process summary current.
+  2. Spawns a daemon thread to push to Notion (non-blocking).
 """
 
 import threading
@@ -222,3 +222,43 @@ def delete_task(name: str) -> dict:
     _refresh_cache()
     _push_async(result)
     return {"archived": row["name"], "message": f"任务 '{row['name']}' 已归档"}
+
+
+# ── Web search ────────────────────────────────────────────────────────────────
+
+def search_web(query: str, max_results: int = 6) -> list[dict] | str:
+    """
+    Search the internet for current information.
+    Returns a list of {title, url, snippet} results.
+    """
+    from search import web_search
+    return web_search(query, max_results)
+
+
+def fetch_url(url: str) -> str:
+    """
+    Fetch and read the full text content of a web page.
+    Use this when search snippets aren't enough detail.
+    """
+    from search import fetch_page
+    return fetch_page(url)
+
+
+# ── Gmail ─────────────────────────────────────────────────────────────────────
+
+def read_emails(count: int = 10, unread_only: bool = True) -> list[dict] | str:
+    """
+    Read recent emails from Gmail inbox.
+    Returns [{subject, from, date, preview}].
+    """
+    from gmail import get_emails
+    return get_emails(count=count, unread_only=unread_only)
+
+
+def find_emails(query: str, count: int = 10) -> list[dict] | str:
+    """
+    Search Gmail for emails matching a keyword (subject or body).
+    Returns [{subject, from, date, preview}].
+    """
+    from gmail import search_emails
+    return search_emails(query=query, count=count)

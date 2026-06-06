@@ -20,9 +20,13 @@ from prompts import MOOD_LABELS, get_system_prompt
 from tools import (
     add_task,
     delete_task,
+    find_emails,
+    fetch_url,
     get_summary,
     list_tasks,
     query_task,
+    read_emails,
+    search_web,
     update_task,
 )
 
@@ -37,7 +41,7 @@ if not _api_key:
 
 client    = OpenAI(api_key=_api_key, base_url="https://api.deepseek.com")
 MODEL     = "deepseek-chat"
-MAX_STEPS = 5
+MAX_STEPS = 8   # research tasks may need: search → read page → synthesize → answer
 
 
 # ── 人格切换 ───────────────────────────────────────────────────────────────────
@@ -52,12 +56,19 @@ def set_mood(mode: str) -> str:
 # ── 工具分发 ───────────────────────────────────────────────────────────────────
 
 _TOOL_MAP = {
+    # Task management
     "get_summary":  lambda a: get_summary(),
     "query_task":   lambda a: query_task(**a),
     "add_task":     lambda a: add_task(**a),
     "update_task":  lambda a: update_task(**a),
     "list_tasks":   lambda a: list_tasks(**a),
     "delete_task":  lambda a: delete_task(**a),
+    # Web
+    "search_web":   lambda a: search_web(**a),
+    "fetch_url":    lambda a: fetch_url(**a),
+    # Gmail
+    "read_emails":  lambda a: read_emails(**a),
+    "find_emails":  lambda a: find_emails(**a),
 }
 
 

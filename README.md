@@ -33,6 +33,8 @@ You talk to Hermes the same way you'd update a teammate. It understands natural 
 | **Notion Sync** | Bidirectional · conflict resolution by timestamp · retry with exponential backoff |
 | **Web UI** | Liquid Glass design · light/dark theme · resizable panels · drag-and-drop file/image upload |
 | **Telegram Bot** | Full command set · image scanning · OCR confirm flow · persona switcher with inline keyboard |
+| **Web Search** | Hermes searches the internet mid-conversation (DuckDuckGo free, or Tavily for better results) |
+| **Gmail** | Read unread emails, search inbox — Hermes checks your mail when relevant |
 | **Export** | CSV · Markdown |
 | **CI** | GitHub Actions runs `test_demo.py` on every push to `main` |
 
@@ -58,6 +60,9 @@ cp .env.example .env   # then fill in the values
 | `TELEGRAM_BOT_TOKEN` | ✅ | @BotFather → /newbot |
 | `TELEGRAM_CHAT_ID` | ✅ | See step 3 |
 | `GEMINI_API_KEY` | Optional | OCR image scanning (aistudio.google.com/app/apikey) |
+| `TAVILY_API_KEY` | Optional | Better web search results (tavily.com) — DuckDuckGo used if not set |
+| `GMAIL_ADDRESS` | Optional | Your Gmail address for inbox access |
+| `GMAIL_APP_PASSWORD` | Optional | Gmail App Password (myaccount.google.com/apppasswords) |
 | `NOTION_TOKEN` | Optional | notion.so/my-integrations → Internal Integration Token |
 | `NOTION_PARENT_PAGE_ID` | Optional | 32-char ID from the target Notion page URL |
 | `UI_PASSWORD` | Optional | Web UI access password (default: `changeme`) |
