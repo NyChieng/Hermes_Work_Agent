@@ -484,3 +484,127 @@ chatInput.addEventListener('input', () => {
 document.querySelectorAll('.quick-btn').forEach(btn => {
   btn.addEventListener('click', () => sendMessage(btn.dataset.msg));
 });
+
+// ── Task-scoped chat ───────────────────────────────────────────────────────
+
+function appendTaskMessage(role, text) {
+  const el  = document.getElementById('tdp-messages');
+  const div = document.createElement('div');
+  div.className  = `msg ${role === 'user' ? 'user' : 'agent'}`;
+  div.style.cssText = 'max-width:100%';
+  const isAgent = role !== 'user';
+  div.innerHTML = `
+    ${isAgent ? '<span class="msg-avatar" style="font-size:16px">🤖</span>' : ''}
+    <div class="msg-bubble" style="font-size:13px">${esc(text)}</div>
+    ${!isAgent ? '<span class="msg-avatar" style="font-size:16px">🙂</span>' : ''}
+  `;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div.querySelector('.msg-bubble');
+}
+
+async function sendTaskMessage(text) {
+  if (!text.trim() || state.taskSending || !state.activeTask) return;
+  state.taskSending = true;
+
+  const taskName = state.activeTask.name;
+  const sendBtn  = document.getElementById('tdp-send-btn');
+  const input    = document.getElementById('tdp-input');
+  sendBtn.disabled = true;
+  input.value      = '';
+  input.style.height = 'auto';
+
+  appendTaskMessage('user', text);
+
+  // Typing dots
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'msg agent';
+  typingDiv.id        = 'tdp-typing';
+  typingDiv.innerHTML = '<span class="msg-avatar" style="font-size:16px">🤖</span>'
+    + '<div class="typing-dots"><span></span><span></span><span></span></div>';
+  document.getElementById('tdp-messages').appendChild(typingDiv);
+  document.getElementById('tdp-messages').scrollTop = 99999;
+
+  const history    = state.taskHistories[taskName] || [];
+  let   agentBubble = null;
+  let   fullReply   = '';
+
+  try {
+    const resp = await fetch(`/api/chat/task/${encodeURIComponent(taskName)}`, {
+      method:  'POST',
+      headers: { 'X-Auth-Token': state.token, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message: text, history }),
+    });
+    if (!resp.ok) throw new Error(`${resp.status}`);
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let   buffer  = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const chunk = JSON.parse(raw);
+          if (chunk.error) { toast(chunk.error, 'error'); break; }
+          if (chunk.char !== undefined) {
+            if (!agentBubble) {
+              typingDiv.remove();
+              agentBubble = appendTaskMessage('agent', '');
+              agentBubble.innerHTML = '<span class="cursor"></span>';
+            }
+            fullReply += chunk.char;
+            agentBubble.innerHTML = esc(fullReply) + '<span class="cursor"></span>';
+            document.getElementById('tdp-messages').scrollTop = 99999;
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    typingDiv.remove();
+    toast('发送失败: ' + e.message, 'error');
+  } finally {
+    if (agentBubble) agentBubble.innerHTML = esc(fullReply);
+    state.taskSending = false;
+    sendBtn.disabled  = false;
+
+    // Save to per-task history (keep last 12 messages)
+    const hist = state.taskHistories[taskName] || [];
+    hist.push({ role: 'user',      content: text });
+    hist.push({ role: 'assistant', content: fullReply });
+    state.taskHistories[taskName] = hist.slice(-12);
+
+    // Refresh detail panel in case agent updated the task
+    if (state.activeTask && state.activeTask.name === taskName) {
+      try {
+        const tasks = await api.get('/api/tasks?limit=200');
+        const fresh = tasks.find(t => t.name === taskName);
+        if (fresh) { state.activeTask = fresh; openTaskDetail(fresh); }
+      } catch (_) {}
+    }
+    await Promise.all([loadBoard(), loadSummary()]);
+  }
+}
+
+// Wire up task chat input
+document.getElementById('tdp-send-btn').addEventListener('click', () => {
+  sendTaskMessage(document.getElementById('tdp-input').value);
+});
+document.getElementById('tdp-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTaskMessage(document.getElementById('tdp-input').value);
+  }
+});
+document.getElementById('tdp-input').addEventListener('input', () => {
+  const el = document.getElementById('tdp-input');
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 80) + 'px';
+});
