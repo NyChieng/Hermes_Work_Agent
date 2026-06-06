@@ -1,183 +1,232 @@
 # Hermes Work Agent
 
-AI 驱动的工作进度追踪系统 — 支持 CLI / Web UI / Telegram Bot 三端，
-带 Notion 双向同步、OCR 图片识别、番茄钟、周报生成，以及三种性格各异的 AI 人格。
+> AI-powered work progress tracker with a personality. Runs across CLI, Web UI, and Telegram Bot — with Notion sync, OCR task extraction, pomodoro timers, and weekly reports built in.
 
 ---
 
-## 功能一览
+## What it does
 
-| 功能 | 说明 | 入口 |
-|------|------|------|
-| 任务管理 | 增删改查，支持优先级/状态/截止日期/标签 | 三端 |
-| AI 对话 | 自然语言操作任务，ReAct 推理循环 | Web UI / Telegram / CLI |
-| 三种人格 | 损友 / 军训教官 / 怨念上司，可随时切换 | `/mood` |
-| 情绪记忆 | 记录每日表现，连续好/差天数，翻旧账 | 自动 |
-| 早晚报 | 每天 09:00 早报 + 21:00 晚报 | Telegram / `/morning` `/report` |
-| **周报生成** | 每周日 21:00 自动推送，或手动触发 | Telegram `/weekly` / Web UI |
-| **截止日期提醒** | 每小时检查，24h / 1h 前各推一次 | Telegram 自动 |
-| **番茄钟** | 25 分钟专注计时，到点推送提醒 | Telegram `/pomo` |
-| **OCR 图片识别** | 拍白板/便签/截图，自动提取任务 | Telegram 发图 / Web UI 拖拽 |
-| Notion 同步 | 双向同步，冲突按时间戳解决 | 自动（每 5 分钟）|
-| 导出 | 导出 CSV / Markdown | Web UI |
+You talk to Hermes the same way you'd update a teammate. It understands natural language, manages your task board, sends you morning/evening reports, and calls you out when you're slacking — in one of three distinct personas.
+
+```
+"API module is done"                    → marks task done, syncs to Notion
+"Block the design review, waiting on X" → updates status, notes the reason
+"Add a deadline of Friday for the report" → sets deadline, schedules reminder
+```
 
 ---
 
-## 5 步启动
+## Features
 
-### 1. 安装依赖
+| Category | Feature |
+|----------|---------|
+| **AI** | DeepSeek ReAct loop · three personas (Buddy / Drill / Boss) · emotional memory & streak tracking |
+| **Tasks** | CRUD with priority, deadline, tags, notes · fuzzy name matching · soft-delete (archive) |
+| **Reminders** | Morning report 09:00 · Evening report 21:00 · Hourly deadline checks (24h + 1h warnings) |
+| **Weekly Report** | Auto-generated every Sunday 21:00 · persona-voiced highlights / blockers / next-week goals |
+| **Pomodoro** | `/pomo` start/stop/stats · focus time logged to task notes · completion push notification |
+| **OCR** | Paste or drag a photo of a whiteboard / sticky note → Gemini Flash extracts task list |
+| **Notion Sync** | Bidirectional · conflict resolution by timestamp · retry with exponential backoff |
+| **Web UI** | Liquid Glass design · light/dark theme · resizable panels · drag-and-drop file/image upload |
+| **Telegram Bot** | Full command set · image scanning · OCR confirm flow · persona switcher with inline keyboard |
+| **Export** | CSV · Markdown |
+| **CI** | GitHub Actions runs `test_demo.py` on every push to `main` |
+
+---
+
+## Quick start
+
+### 1. Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 配置密钥
+### 2. Configure
 
 ```bash
-copy .env.example .env    # Windows
-# cp .env.example .env   # macOS/Linux
+cp .env.example .env   # then fill in the values
 ```
 
-填写 `.env`：
-
-| 变量 | 必填 | 说明 |
-|------|------|------|
+| Variable | Required | Description |
+|----------|----------|-------------|
 | `DEEPSEEK_API_KEY` | ✅ | platform.deepseek.com → API Keys |
 | `TELEGRAM_BOT_TOKEN` | ✅ | @BotFather → /newbot |
-| `TELEGRAM_CHAT_ID` | ✅ | 见步骤 3 |
-| `GEMINI_API_KEY` | 可选 | OCR 图片识别专用，aistudio.google.com |
-| `NOTION_TOKEN` | 可选 | notion.so/my-integrations |
-| `NOTION_PARENT_PAGE_ID` | 可选 | 目标页面 URL 末尾 32 位 |
-| `UI_PASSWORD` | 可选 | Web UI 访问密码，默认 changeme |
+| `TELEGRAM_CHAT_ID` | ✅ | See step 3 |
+| `GEMINI_API_KEY` | Optional | OCR image scanning (aistudio.google.com/app/apikey) |
+| `NOTION_TOKEN` | Optional | notion.so/my-integrations → Internal Integration Token |
+| `NOTION_PARENT_PAGE_ID` | Optional | 32-char ID from the target Notion page URL |
+| `UI_PASSWORD` | Optional | Web UI access password (default: `changeme`) |
 
-### 3. 获取 Telegram Chat ID
+### 3. Get your Telegram Chat ID
 
 ```
-1. 填好 TELEGRAM_BOT_TOKEN，运行：python main.py
-2. 向你的 bot 发任意一条消息
-3. 访问：https://api.telegram.org/bot<TOKEN>/getUpdates
-4. 找 result[0].message.chat.id，填入 .env
+1. Fill in TELEGRAM_BOT_TOKEN and run: python main.py
+2. Send any message to your bot
+3. Open: https://api.telegram.org/bot<TOKEN>/getUpdates
+4. Find result[0].message.chat.id — paste it into .env
 ```
 
-### 4. 离线测试（可选）
+### 4. Test (no API calls required)
 
 ```bash
 python test_demo.py
 ```
 
-### 5. 启动
+### 5. Run
 
 ```bash
 python main.py
+# Web UI → http://localhost:8000
 ```
 
-首次启动若配置了 Notion 凭据，会自动创建 Notion 数据库。
+On first run, Hermes creates the Notion database automatically if credentials are configured.
 
 ---
 
-## 三端使用
+## Telegram commands
 
-| 端 | 访问方式 | 功能 |
-|----|----------|------|
-| **Web UI** | `http://localhost:8000` | 完整看板 + AI 聊天 + OCR 拖拽 + 周报 |
-| **Telegram** | Bot 对话 | 消息操作 + 早晚报 + 周报 + 番茄钟 + OCR |
-| **CLI** | `python agent.py` | 纯命令行对话 |
-
----
-
-## Telegram 命令
-
-| 命令 | 功能 |
-|------|------|
-| `/start` `/help` | 显示帮助 |
-| `/morning` | ☀️ 今日任务计划 |
-| `/report` | 🌙 今日收工汇报 |
-| `/weekly` | 📋 **生成本周周报** |
-| `/list` | 列出所有任务 |
-| `/mood [friend\|drill\|boss]` | 🎭 切换人格 |
-| `/notion` | Notion 数据库链接 |
-| `/sync` | 手动触发 Notion 同步 |
-| `/pomo <任务名>` | 🍅 开始 25 分钟番茄钟 |
-| `/pomo stop` | 中断当前番茄钟 |
-| `/pomo stats` | 查看今日/本周专注统计 |
-| 发图片 | 📸 自动 OCR 识别任务 |
-| 直接发消息 | 🤖 AI 自动理解并处理 |
+| Command | Description |
+|---------|-------------|
+| `/morning` | ☀️ Today's task plan |
+| `/report` | 🌙 End-of-day summary |
+| `/weekly` | 📋 Generate weekly report (or auto-pushes Sunday 21:00) |
+| `/list` | List all tasks |
+| `/mood [buddy\|drill\|boss]` | Switch persona |
+| `/pomo <task name>` | Start a 25-min pomodoro |
+| `/pomo stop` | Cancel current pomodoro |
+| `/pomo stats` | Today / this week focus time |
+| `/notion` | Notion database link |
+| `/sync` | Manual Notion sync |
+| `/help` | Full command reference |
+| Send a photo | Scan for tasks via OCR |
+| Send any text | Agent understands and acts |
 
 ---
 
-## 三种人格
+## Three personas
 
-| 模式 | 风格 | 切换 |
-|------|------|------|
-| 😏 **损友** | 嘴很毒但真心关心，每夸一句补一刀 | `/mood friend` |
-| 🪖 **军训教官** | 没废话只要结果，每句以行动指令收尾 | `/mood drill` |
-| 😔 **怨念上司** | 克制的失望，省略号比语言更重 | `/mood boss` |
+Each persona has its own voice for daily messages, deadline reminders, and weekly reports.
 
-连续 3+ 天未完成？每种人格有专属翻旧账台词。
+| Mode | Character | Command |
+|------|-----------|---------|
+| **Buddy** 😏 | Sharp-tongued but genuinely cares. Compliments with a twist. | `/mood buddy` |
+| **Drill** 🪖 | No filler. Results only. Every reply ends with an action order. | `/mood drill` |
+| **Boss** 😔 | Quietly disappointed. Expects better. Uses a lot of `...` | `/mood boss` |
 
----
-
-## 定时推送
-
-| 时间 | 事件 |
-|------|------|
-| 每天 09:00 | ☀️ 早报（高优先级任务 + 阻塞概览）|
-| 每天 21:00 | 🌙 晚报 + 记录今日快照 |
-| 每小时 | ⏰ 检查截止日期，24h / 1h 前各提醒一次 |
-| 每周日 21:00 | 📋 自动生成并推送周报 |
-| 每 5 分钟 | 🔄 Notion → SQLite 轮询同步 |
+Personas also apply "callback rules" — if you've had 3+ bad days in a row, each persona calls it out in its own way.
 
 ---
 
-## OCR 使用说明
+## Web UI
 
-**Telegram：** 直接向 bot 发送图片（白板、便签、截图），bot 自动识别任务列表，
-回复"确认"批量创建，回复"取消"放弃。
+Access at `http://localhost:8000` after starting.
 
-**Web UI：** 点击输入框旁的 📸 按钮，或直接把图片拖拽到聊天区域，
-识别完成后弹出确认面板，可逐条勾选后点击"全部创建"。
-
-需要配置 `GEMINI_API_KEY`（Google AI Studio 免费申请）。
+- **Kanban board** — four columns (To Do / In Progress / Done / Blocked), each collapsible
+- **Resizable panels** — drag the dividers; widths persist across sessions
+- **Light / Dark theme** — toggle in the sidebar header; follows localStorage
+- **Task detail panel** — inline status/priority/deadline editing, per-task agent chat
+- **Image OCR** — drag an image onto the chat or click the scan button; review and confirm tasks
+- **Paste to scan** — `Ctrl+V` a screenshot directly into the chat input
+- **Quick actions** — hover a card to instantly mark it done
+- **Search** — `/` to focus, filters all columns live
+- **Export** — CSV or Markdown from the sidebar footer
 
 ---
 
-## 项目结构
+## Scheduled jobs
+
+| Time | Job |
+|------|-----|
+| Daily 09:00 | Morning report → Telegram |
+| Daily 21:00 | Evening report + daily snapshot → Telegram |
+| Every hour | Deadline check: push alerts for tasks due in 24h and 1h |
+| Sunday 21:00 | Weekly report → Telegram |
+| Every 5 min | Notion → SQLite pull |
+
+---
+
+## Project structure
 
 ```
 hermes-work-agent/
-├── main.py           # 统一入口
-├── agent.py          # ReAct 循环 + 人格管理
-├── tools.py          # 6 个 agent 工具（含 deadline 支持）
-├── db.py             # SQLite 层（tasks / pomodoro_sessions 等6张表）
-├── cache.py          # 摘要缓存
-├── memory.py         # 每日快照 + streak + 周报生成
-├── prompts.py        # 三种人格 prompt（人性化语气）
-├── ocr.py            # Gemini Flash 图片识别
-├── notifier.py       # Telegram 早晚报格式化
-├── telegram_bot.py   # Telegram Bot（/pomo /weekly + OCR 确认流）
-├── scheduler.py      # 定时任务（早晚报/截止提醒/周报/Notion轮询）
-├── notion_sync.py    # Notion 双向同步（含重试逻辑）
-├── api.py            # FastAPI（含 /api/ocr /api/weekly）
-├── static/           # Web UI（Linear 风格设计）
-├── test_demo.py      # 离线工具层测试
-├── requirements.txt
-├── .env.example
-└── .github/workflows/test.yml  # CI：push main 自动跑测试
+├── main.py           # Startup orchestration
+├── agent.py          # DeepSeek ReAct loop + persona switching
+├── tools.py          # 6 agent tools (add / update / delete / list / query / summary)
+├── db.py             # SQLite schema (6 tables) + WAL mode
+├── cache.py          # 80-token summary cache
+├── memory.py         # Daily snapshots · streak tracking · weekly report generator
+├── prompts.py        # Three persona prompts (humanised, not rule-list style)
+├── ocr.py            # Gemini Flash image → task extraction
+├── notifier.py       # Morning / evening report formatting
+├── notion_sync.py    # Bidirectional sync with retry logic
+├── scheduler.py      # APScheduler jobs (reports · reminders · weekly · Notion poll)
+├── api.py            # FastAPI: REST + SSE streaming + /api/ocr + /api/weekly
+├── telegram_bot.py   # Bot: commands · OCR confirm flow · pomodoro timer
+├── static/
+│   ├── index.html    # Single-page app shell
+│   ├── style.css     # Liquid Glass design system (light + dark)
+│   └── app.js        # UI logic, resize, OCR, paste-image, theme
+├── test_demo.py      # Offline tool-layer tests (no LLM calls)
+├── .github/
+│   └── workflows/
+│       └── test.yml  # CI: runs test_demo.py on push to main
+├── .env.example      # Configuration template
+└── requirements.txt
 ```
 
 ---
 
-## Railway 部署
+## Database schema
 
-1. 推送到 GitHub
-2. railway.app → New Project → Deploy from GitHub
-3. Variables 页填入所有 `.env` 变量
-4. Volumes → Mount Path 填 `/app/data`（持久化 SQLite）
-5. 部署完成，访问生成的 URL
+Six SQLite tables, all created on first run:
+
+| Table | Purpose |
+|-------|---------|
+| `tasks` | Main task store (name, status, priority, notes, tags, deadline, notion_id) |
+| `summary_cache` | Single-row precomputed stats (keeps LLM context ~80 tokens) |
+| `daily_log` | Per-day completion snapshot for memory and weekly report |
+| `streak` | Good/bad streak counters + last 7-day notes |
+| `agent_state` | Current mood + Notion IDs |
+| `pomodoro_sessions` | Focus session records (task, start, duration, completed) |
 
 ---
 
-## Token 消耗
+## Token usage
 
-每轮对话注入约 80 tokens 摘要 + ~100 tokens 记忆块（而非完整任务列表），
-比原始方案节省约 85% token 费用。历史按字符数裁剪（每4字符≈1 token，超过 3000 token 自动截断）。
+| Content | Tokens |
+|---------|--------|
+| Summary cache (injected every turn) | ~80 |
+| Memory block (recent history + streaks) | ~100 |
+| Full task table (old approach) | ~600–2000+ |
+
+**Saving: ~85%** vs dumping the full task list on every call.
+
+History is trimmed by character count (≈ 1 token per 4 chars, cap at 3 000 tokens).
+
+---
+
+## Deploy to Railway
+
+1. Push to GitHub
+2. [railway.app](https://railway.app) → New Project → Deploy from GitHub → select repo
+3. **Variables** — add all `.env` values (never commit the `.env` file)
+4. **Volumes** → Mount Path: `/app/data` (persists SQLite across deploys)
+5. Deploy — access the generated URL
+
+> SQLite lives at `/app/data/tasks.db` on Railway. Without a Volume, data resets on every deploy.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|-------|-----------|
+| LLM | DeepSeek Chat (`deepseek-chat`) via OpenAI-compatible SDK |
+| OCR | Google Gemini 2.0 Flash (`gemini-2.0-flash`) |
+| Backend | FastAPI + Uvicorn |
+| Database | SQLite (WAL mode) |
+| Bot | python-telegram-bot 20.x |
+| Notion | httpx + Notion REST API v1 |
+| Scheduling | `schedule` library (daemon thread) |
+| Frontend | Vanilla JS · CSS Liquid Glass design system |
