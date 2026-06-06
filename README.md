@@ -1,6 +1,10 @@
 # Hermes Work Agent
 
-> AI-powered work progress tracker with a personality. Runs across CLI, Web UI, and Telegram Bot — with Notion sync, OCR task extraction, pomodoro timers, and weekly reports built in.
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![CI](https://github.com/NyChieng/Hermes_Work_Agent/actions/workflows/test.yml/badge.svg)](https://github.com/NyChieng/Hermes_Work_Agent/actions)
+
+> A personal AI work assistant that thinks like a human. Tracks your tasks, calls you out when you're procrastinating, and gives honest feedback — across Web UI, Telegram, and CLI.
 
 ---
 
@@ -215,6 +219,18 @@ History is trimmed by character count (≈ 1 token per 4 chars, cap at 3 000 tok
 5. Deploy — access the generated URL
 
 > SQLite lives at `/app/data/tasks.db` on Railway. Without a Volume, data resets on every deploy.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Open an issue before writing code for anything beyond a small fix.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ---
 

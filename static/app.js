@@ -544,7 +544,7 @@ document.querySelectorAll('.persona-btn').forEach(b => {
   b.addEventListener('click', async () => {
     try {
       const r = await api.post(`/api/mood/${b.dataset.mood}`);
-      const L = { friend:'😏 损友模式', drill:'🪖 军训教官模式', boss:'😔 怨念上司模式' };
+      const L = { friend: '😏 Buddy', drill: '🙂 Guide', boss: '😔 Boss' };
       setMoodUI(b.dataset.mood, L[b.dataset.mood]);
       toast(r.message||'人格已切换', 'ok');
     } catch (e) { toast('切换失败', 'error'); }
@@ -630,11 +630,17 @@ async function sendMessage(text) {
   let   bubble   = null;
   let   fullReply = '';
 
+  const _ctrl    = new AbortController();
+  const _timeout = setTimeout(() => _ctrl.abort(), 90_000); // 90s hard cap
+
   try {
     const resp = await fetch('/api/chat', {
-      method:'POST', headers:{'X-Auth-Token':state.token,'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, history: state.history }),
+      method:  'POST',
+      headers: { 'X-Auth-Token': state.token, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message: text, history: state.history }),
+      signal:  _ctrl.signal,
     });
+    clearTimeout(_timeout);
     if (!resp.ok) throw new Error(`${resp.status}`);
 
     const reader = resp.body.getReader(); const decoder = new TextDecoder(); let buf='';
@@ -657,14 +663,22 @@ async function sendMessage(text) {
         } catch (_) {}
       }
     }
-  } catch (e) { typingEl.remove(); toast('发送失败','error'); }
-  finally {
+  } catch (e) {
+    clearTimeout(_timeout);
+    typingEl?.remove();
+    const msg = e.name === 'AbortError' ? 'Request timed out — try again' : 'Send failed: ' + e.message;
+    toast(msg, 'error');
+  } finally {
+    typingEl?.remove();
     if (bubble) bubble.innerHTML = esc(fullReply);
-    state.sending=false; $sendBtn.disabled=false; $sendIcon.className=''; $sendIcon.textContent='↑';
-    state.history.push({role:'user',content:text});
-    state.history.push({role:'assistant',content:fullReply});
-    if (state.history.length>12) state.history=state.history.slice(-12);
-    loadBoard(); loadSummary();
+    state.sending = false;
+    $sendBtn.disabled = false;
+    $sendBtn.classList.remove('loading');
+    state.history.push({ role: 'user',      content: text });
+    if (fullReply) state.history.push({ role: 'assistant', content: fullReply });
+    if (state.history.length > 12) state.history = state.history.slice(-12);
+    loadBoard();
+    loadSummary();
   }
 }
 
